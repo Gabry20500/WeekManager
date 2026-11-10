@@ -1,47 +1,61 @@
-import type {
-  Diary,
-  Food,
-  PantryLot,
-  Profile,
-  ShoppingItem,
-} from "../models/types";
+import type { Diary, Food, PantryLot, Profile, ShoppingItem } from "../models/types";
 import { builtinProfiles } from "../data/food-catalog";
-import { dateKey, parseDate } from "../utils/helpers";
+import { MACRO_KEYS } from "./nutrition";
+import { dateKey, isFiniteNumber, isRecord, parseDate } from "../utils/helpers";
 
 export const DIARY_KEY = "diario-alimentare:diary:v1";
 export const PROFILE_KEY = "diario-alimentare:nutrition:v1";
 export const SHOPPING_KEY = "diario-alimentare:shopping:v1";
 export const PANTRY_KEY = "diario-alimentare:pantry:v1";
 
-export let storageWarning = "";
+const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY] as const;
+type ArchiveKey = (typeof ARCHIVE_KEYS)[number];
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Set when an archive cannot be read. While it is set every save is refused,
+ * so unreadable data is never overwritten.
+ */
+let storageWarning = "";
+
+export function getStorageWarning(): string {
+  return storageWarning;
+}
+
+/* ---------------------------------------------------------------
+   Validation
+   --------------------------------------------------------------- */
+
+function isPositiveNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value > 0;
+}
+
+function listOf<T>(validate: (value: unknown) => value is T) {
+  return (value: unknown): value is T[] => Array.isArray(value) && value.every(validate);
 }
 
 function validFood(value: unknown): value is Food {
   return (
-    object(value) &&
+    isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
     typeof value.unit === "string" &&
-    typeof value.amount === "number" &&
-    Number.isFinite(value.amount) &&
-    value.amount > 0
+    isPositiveNumber(value.amount)
   );
 }
 
 export function validDiary(value: unknown): value is Diary {
   return (
-    object(value) &&
+    isRecord(value) &&
     Object.entries(value).every(
       ([key, entries]) =>
-        /^\d{4}-\d{2}-\d{2}$/.test(key) &&
+        DATE_KEY_PATTERN.test(key) &&
         dateKey(parseDate(key)) === key &&
         Array.isArray(entries) &&
         entries.every(
           (entry) =>
-            object(entry) &&
+            isRecord(entry) &&
             typeof entry.mealId === "string" &&
             Array.isArray(entry.foods) &&
             entry.foods.every(validFood),
@@ -52,36 +66,26 @@ export function validDiary(value: unknown): value is Diary {
 
 export function validProfile(value: unknown): value is Profile {
   return (
-    object(value) &&
+    isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
     value.name.trim().length > 0 &&
     typeof value.source === "string" &&
     (value.aliases === undefined ||
-      (Array.isArray(value.aliases) &&
-        value.aliases.every((alias) => typeof alias === "string"))) &&
+      (Array.isArray(value.aliases) && value.aliases.every((alias) => typeof alias === "string"))) &&
     (value.basis === "g" || value.basis === "ml") &&
-    ["kcal", "protein", "carbs", "fat"].every(
-      (key) =>
-        typeof value[key] === "number" &&
-        Number.isFinite(value[key]) &&
-        (value[key] as number) >= 0,
-    ) &&
-    object(value.portions) &&
-    Object.values(value.portions).every(
-      (n) => typeof n === "number" && Number.isFinite(n) && n > 0,
-    )
+    MACRO_KEYS.every((key) => isFiniteNumber(value[key]) && value[key] >= 0) &&
+    isRecord(value.portions) &&
+    Object.values(value.portions).every(isPositiveNumber)
   );
 }
 
 function validShoppingItem(value: unknown): value is ShoppingItem {
   return (
-    object(value) &&
+    isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
-    typeof value.quantity === "number" &&
-    Number.isFinite(value.quantity) &&
-    value.quantity > 0 &&
+    isPositiveNumber(value.quantity) &&
     typeof value.unit === "string" &&
     typeof value.checked === "boolean" &&
     typeof value.createdAt === "string"
@@ -90,14 +94,11 @@ function validShoppingItem(value: unknown): value is ShoppingItem {
 
 function validPantryLot(value: unknown): value is PantryLot {
   return (
-    object(value) &&
+    isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
-    typeof value.quantityInitial === "number" &&
-    typeof value.quantityRemaining === "number" &&
-    Number.isFinite(value.quantityInitial) &&
-    Number.isFinite(value.quantityRemaining) &&
-    value.quantityInitial > 0 &&
+    isPositiveNumber(value.quantityInitial) &&
+    isFiniteNumber(value.quantityRemaining) &&
     value.quantityRemaining >= 0 &&
     value.quantityRemaining <= value.quantityInitial &&
     typeof value.unit === "string" &&
@@ -108,67 +109,69 @@ function validPantryLot(value: unknown): value is PantryLot {
   );
 }
 
-export function loadDiary(): Diary {
+const validProfiles = listOf(validProfile);
+const validShopping = listOf(validShoppingItem);
+const validPantry = listOf(validPantryLot);
+
+/* ---------------------------------------------------------------
+   Loading and saving
+   --------------------------------------------------------------- */
+
+/** Reads one archive; on unreadable data returns `empty` and locks saving. */
+function loadArchive<T>(key: ArchiveKey, validate: (value: unknown) => value is T, empty: T, warning: string): T {
   try {
-    const text = localStorage.getItem(DIARY_KEY);
-    if (!text) return {};
+    const text = localStorage.getItem(key);
+    if (!text) return empty;
     const parsed: unknown = JSON.parse(text);
-    if (!validDiary(parsed)) throw new Error("Invalid diary");
+    if (!validate(parsed)) throw new Error(`Invalid archive: ${key}`);
     return parsed;
   } catch {
-    storageWarning =
-      "Il diario non è leggibile. Il salvataggio è bloccato per non sovrascrivere i dati.";
-    return {};
+    storageWarning = warning;
+    return empty;
   }
 }
 
+export function loadDiary(): Diary {
+  return loadArchive(
+    DIARY_KEY,
+    validDiary,
+    {},
+    "Il diario non è leggibile. Il salvataggio è bloccato per non sovrascrivere i dati.",
+  );
+}
+
+/** Personal profiles first, then every built-in one that was not overridden. */
 export function loadProfiles(): Profile[] {
-  try {
-    const text = localStorage.getItem(PROFILE_KEY);
-    const parsed: unknown = text ? JSON.parse(text) : [];
-    if (!Array.isArray(parsed) || !parsed.every(validProfile)) {
-      throw new Error("Invalid profiles");
-    }
-    const ids = new Set(parsed.map((profile) => profile.id));
-    return [...parsed, ...builtinProfiles.filter((profile) => !ids.has(profile.id))];
-  } catch {
-    storageWarning =
-      "L’archivio nutrizionale non è leggibile. Il salvataggio è bloccato: conserva un backup dei dati originali.";
-    return [...builtinProfiles];
-  }
+  const personal = loadArchive(
+    PROFILE_KEY,
+    validProfiles,
+    [],
+    "L’archivio nutrizionale non è leggibile. Il salvataggio è bloccato: conserva un backup dei dati originali.",
+  );
+  const ids = new Set(personal.map((profile) => profile.id));
+  return [...personal, ...builtinProfiles.filter((profile) => !ids.has(profile.id))];
 }
 
 export function loadShopping(): ShoppingItem[] {
-  try {
-    const text = localStorage.getItem(SHOPPING_KEY);
-    const parsed: unknown = text ? JSON.parse(text) : [];
-    if (!Array.isArray(parsed) || !parsed.every(validShoppingItem)) {
-      throw new Error("Invalid shopping list");
-    }
-    return parsed;
-  } catch {
-    storageWarning =
-      "La lista della spesa non è leggibile. Il salvataggio è bloccato: esporta una copia dei dati attuali.";
-    return [];
-  }
+  return loadArchive(
+    SHOPPING_KEY,
+    validShopping,
+    [],
+    "La lista della spesa non è leggibile. Il salvataggio è bloccato: esporta una copia dei dati attuali.",
+  );
 }
 
 export function loadPantry(): PantryLot[] {
-  try {
-    const text = localStorage.getItem(PANTRY_KEY);
-    const parsed: unknown = text ? JSON.parse(text) : [];
-    if (!Array.isArray(parsed) || !parsed.every(validPantryLot)) {
-      throw new Error("Invalid pantry");
-    }
-    return parsed;
-  } catch {
-    storageWarning =
-      "La dispensa non è leggibile. Il salvataggio è bloccato: esporta una copia dei dati attuali.";
-    return [];
-  }
+  return loadArchive(
+    PANTRY_KEY,
+    validPantry,
+    [],
+    "La dispensa non è leggibile. Il salvataggio è bloccato: esporta una copia dei dati attuali.",
+  );
 }
 
-export function save(key: string, value: unknown): boolean {
+/** Persists one archive. Returns `false` (after telling the user) on failure. */
+export function save(key: ArchiveKey, value: unknown): boolean {
   if (storageWarning) {
     alert(storageWarning);
     return false;
@@ -182,12 +185,12 @@ export function save(key: string, value: unknown): boolean {
   }
 }
 
+/* ---------------------------------------------------------------
+   Export and import
+   --------------------------------------------------------------- */
+
 export function downloadJson(value: unknown, filename: string): void {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], {
-      type: "application/json",
-    }),
-  );
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -197,6 +200,7 @@ export function downloadJson(value: unknown, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Downloads the archives exactly as stored, even when they are unreadable. */
 export function exportOriginalArchives(): void {
   try {
     downloadJson(
@@ -213,6 +217,28 @@ export function exportOriginalArchives(): void {
   }
 }
 
+type BackupContent = Partial<Record<ArchiveKey, unknown>>;
+
+/** Recognizes every supported backup format; `undefined` when none matches. */
+function readBackup(parsed: unknown): BackupContent | undefined {
+  if (validProfiles(parsed)) return { [PROFILE_KEY]: parsed };
+
+  if (isRecord(parsed) && validDiary(parsed.diary) && validProfiles(parsed.profiles)) {
+    const base = { [DIARY_KEY]: parsed.diary, [PROFILE_KEY]: parsed.profiles };
+    if (parsed.schemaVersion === 1) return base;
+    if (parsed.schemaVersion === 2 && validShopping(parsed.shopping) && validPantry(parsed.pantry)) {
+      return { ...base, [SHOPPING_KEY]: parsed.shopping, [PANTRY_KEY]: parsed.pantry };
+    }
+  }
+
+  if (validDiary(parsed)) return { [DIARY_KEY]: parsed };
+  return undefined;
+}
+
+/**
+ * Replaces the archives contained in a backup file. The write is all or
+ * nothing: on failure the previous archives are restored.
+ */
 export function importBackup(text: string): boolean {
   if (storageWarning) {
     alert(storageWarning);
@@ -227,48 +253,14 @@ export function importBackup(text: string): boolean {
     return false;
   }
 
-  let nextDiary: Diary | undefined;
-  let nextProfiles: Profile[] | undefined;
-  let nextShopping: ShoppingItem[] | undefined;
-  let nextPantry: PantryLot[] | undefined;
-
-  if (Array.isArray(parsed) && parsed.every(validProfile)) {
-    nextProfiles = parsed;
-  } else if (
-    object(parsed) &&
-    parsed.schemaVersion === 2 &&
-    validDiary(parsed.diary) &&
-    Array.isArray(parsed.profiles) &&
-    parsed.profiles.every(validProfile) &&
-    Array.isArray(parsed.shopping) &&
-    parsed.shopping.every(validShoppingItem) &&
-    Array.isArray(parsed.pantry) &&
-    parsed.pantry.every(validPantryLot)
-  ) {
-    nextDiary = parsed.diary;
-    nextProfiles = parsed.profiles;
-    nextShopping = parsed.shopping;
-    nextPantry = parsed.pantry;
-  } else if (
-    object(parsed) &&
-    parsed.schemaVersion === 1 &&
-    validDiary(parsed.diary) &&
-    Array.isArray(parsed.profiles) &&
-    parsed.profiles.every(validProfile)
-  ) {
-    nextDiary = parsed.diary;
-    nextProfiles = parsed.profiles;
-  } else if (validDiary(parsed)) {
-    nextDiary = parsed;
-  } else {
+  const backup = readBackup(parsed);
+  if (!backup) {
     alert("Formato del backup non riconosciuto. Nessun dato è stato modificato.");
     return false;
   }
 
-  if (
-    nextProfiles &&
-    new Set(nextProfiles.map((profile) => profile.id)).size !== nextProfiles.length
-  ) {
+  const profiles = backup[PROFILE_KEY] as Profile[] | undefined;
+  if (profiles && new Set(profiles.map((profile) => profile.id)).size !== profiles.length) {
     alert("Il file contiene schede duplicate.");
     return false;
   }
@@ -281,44 +273,30 @@ export function importBackup(text: string): boolean {
     return false;
   }
 
-  let previousDiary: string | null;
-  let previousProfiles: string | null;
-  let previousShopping: string | null;
-  let previousPantry: string | null;
-
+  let previous: [ArchiveKey, string | null][];
   try {
-    previousDiary = localStorage.getItem(DIARY_KEY);
-    previousProfiles = localStorage.getItem(PROFILE_KEY);
-    previousShopping = localStorage.getItem(SHOPPING_KEY);
-    previousPantry = localStorage.getItem(PANTRY_KEY);
+    previous = ARCHIVE_KEYS.map((key) => [key, localStorage.getItem(key)]);
   } catch {
     alert("Impossibile leggere gli archivi attuali. Importazione annullata.");
     return false;
   }
 
   try {
-    if (nextDiary) localStorage.setItem(DIARY_KEY, JSON.stringify(nextDiary));
-    if (nextProfiles) localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfiles));
-    if (nextShopping) localStorage.setItem(SHOPPING_KEY, JSON.stringify(nextShopping));
-    if (nextPantry) localStorage.setItem(PANTRY_KEY, JSON.stringify(nextPantry));
+    for (const key of ARCHIVE_KEYS) {
+      if (backup[key] !== undefined) localStorage.setItem(key, JSON.stringify(backup[key]));
+    }
     return true;
   } catch {
     try {
-      if (previousDiary === null) localStorage.removeItem(DIARY_KEY);
-      else localStorage.setItem(DIARY_KEY, previousDiary);
-
-      if (previousProfiles === null) localStorage.removeItem(PROFILE_KEY);
-      else localStorage.setItem(PROFILE_KEY, previousProfiles);
-
-      if (previousShopping === null) localStorage.removeItem(SHOPPING_KEY);
-      else localStorage.setItem(SHOPPING_KEY, previousShopping);
-
-      if (previousPantry === null) localStorage.removeItem(PANTRY_KEY);
-      else localStorage.setItem(PANTRY_KEY, previousPantry);
-
+      for (const [key, value] of previous) {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      }
       alert("Importazione non riuscita. Gli archivi precedenti sono stati ripristinati.");
     } catch {
-      alert("Importazione non riuscita e ripristino incompleto. Conserva il backup e non effettuare altre modifiche.");
+      alert(
+        "Importazione non riuscita e ripristino incompleto. Conserva il backup e non effettuare altre modifiche.",
+      );
     }
     return false;
   }

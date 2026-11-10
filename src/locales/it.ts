@@ -9,10 +9,4 @@ export const it = {
   confirm: "Conferma",
   searchFood: "Cerca alimento",
   addFood: "+ Aggiungi alimento",
-  removeFood: "Rimuovi alimento",
-  mealPreview: "Anteprima del pasto",
-  calculated: "Calcolato",
-  noNutrition: "Senza dati nutrizionali",
-  manageProfiles: "Gestisci schede nutrizionali",
-  saveMeal: "Salva",
 } as const;
