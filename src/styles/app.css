@@ -267,8 +267,12 @@ p {
   min-width: 0;
 }
 
+.macro span {
+  font-size: 11px;
+}
+
 .macro strong {
-  font-size: 24px;
+  font-size: 22px;
 }
 
 .food-list {
@@ -390,6 +394,28 @@ p {
   height: 100%;
   background: var(--green);
   border-radius: 3px;
+}
+
+.meter.over span {
+  background: #f0c66a;
+}
+
+.progress-list {
+  display: grid;
+  gap: 14px;
+}
+
+.progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+  font-size: 13px;
+}
+
+.progress-head span {
+  color: var(--muted);
 }
 
 .notice {

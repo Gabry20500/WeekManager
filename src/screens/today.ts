@@ -1,8 +1,8 @@
-import type { Diary, Meal, Profile } from "../models/types";
+import type { Diary, Food, Meal, Profile } from "../models/types";
 import { it } from "../locales/it";
 import { getMealPlan } from "../data/meal-plan";
-import { findProfile, totalNutrition } from "../services/nutrition";
-import { renderMacros } from "../components/macro-summary";
+import { findProfile, isExcludedFood, totalNutrition, withSnapshot } from "../services/nutrition";
+import { renderDayProgress } from "../components/macro-summary";
 import { openMealEditor } from "../components/meal-editor";
 import { openProductEditor } from "../components/product-editor";
 import { clone, format, formatMacros, html, isGymDay, parseDate, shiftDate, todayKey } from "../utils/helpers";
@@ -41,6 +41,18 @@ function renderDateNavigation(selectedDate: string): string {
     </div>`;
 }
 
+function renderMealActions(mealId: string, logged: boolean, hasFoods: boolean): string {
+  if (logged) {
+    return `
+      <button class="button secondary" data-edit="${mealId}">${it.editMeal}</button>
+      <button class="button secondary" data-reset="${mealId}">${it.undoMeal}</button>`;
+  }
+  if (!hasFoods) return `<button class="button primary" data-edit="${mealId}">${it.logMeal}</button>`;
+  return `
+    <button class="button primary" data-as-planned="${mealId}">${it.asPlanned}</button>
+    <button class="button secondary" data-edit="${mealId}">${it.changeMeal}</button>`;
+}
+
 function renderMealCard(meal: Meal, state: TodayState): string {
   const entry = (state.diary[state.selectedDate] ?? []).find((item) => item.mealId === meal.id);
   const foods = entry?.foods ?? meal.foods;
@@ -49,7 +61,8 @@ function renderMealCard(meal: Meal, state: TodayState): string {
 
   const foodItems = foods
     .map((food) => {
-      const hasNutrition = Boolean(food.nutrition) || Boolean(findProfile(food, state.profiles));
+      const hasNutrition =
+        isExcludedFood(food) || Boolean(food.nutrition) || Boolean(findProfile(food, state.profiles));
       const warning = hasNutrition ? "" : ' <small class="muted">· scheda nutrizionale mancante</small>';
       return `<li>${html(food.name)} · ${format(food.amount)} ${html(food.unit)}${warning}</li>`;
     })
@@ -65,14 +78,11 @@ function renderMealCard(meal: Meal, state: TodayState): string {
     <article class="card meal">
       <div class="section-heading">
         <h2>${html(meal.name)}</h2>
-        <span class="badge ${entry ? "" : "subtle"}">${entry ? "Registrato" : "Previsto"}</span>
+        <span class="badge ${entry ? "success" : "subtle"}">${entry ? "Registrato" : "Previsto"}</span>
       </div>
       <ul class="food-list">${foodItems || "<li>Nessun alimento: aggiungi ciò che hai mangiato.</li>"}</ul>
       <p class="help">${summary}</p>
-      <div class="actions">
-        <button class="button primary" data-edit="${meal.id}">${entry ? it.editMeal : it.logMeal}</button>
-        ${entry ? `<button class="button secondary" data-reset="${meal.id}">Annulla registrazione</button>` : ""}
-      </div>
+      <div class="actions">${renderMealActions(meal.id, Boolean(entry), foods.length > 0)}</div>
     </article>`;
 }
 
@@ -91,11 +101,9 @@ export function renderTodayScreen(state: TodayState): string {
       <span class="badge">${isGymDay(state.selectedDate) ? "Palestra" : "Riposo"}</span>
     </section>
     ${renderDateNavigation(state.selectedDate)}
-    ${renderMacros(planned, state.profiles, "Macro previsti", true)}
-    ${renderMacros(consumed, state.profiles, "Macro consumati", false)}
-    <button class="button secondary full" id="products">Archivio alimenti / prodotto personale</button>
-    <p class="help">Se vedi trattini nei macro previsti, manca la scheda nutrizionale di uno o più alimenti del piano oppure il nome non combacia con l’archivio.</p>
-    ${plan.map((meal) => renderMealCard(meal, state)).join("")}`;
+    ${renderDayProgress(planned, consumed, state.profiles)}
+    ${plan.map((meal) => renderMealCard(meal, state)).join("")}
+    <button class="button secondary full" id="products">Archivio alimenti / prodotto personale</button>`;
 }
 
 export function bindTodayScreen(root: ParentNode, state: TodayState, actions: TodayActions): void {
@@ -109,19 +117,31 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
     .querySelector("#products")
     ?.addEventListener("click", () => openProductEditor(actions.getProfiles(), actions.saveProfile, actions.rerender));
 
+  const saveMeal = (mealId: string, foods: Food[]): boolean => {
+    const next = clone(state.diary);
+    next[date] = [...(next[date] ?? []).filter((item) => item.mealId !== mealId), { mealId, foods }];
+    if (!actions.saveDiary(next)) return false;
+    actions.rerender();
+    return true;
+  };
+
+  // Logs the planned foods as eaten, with the nutrition computed now.
+  root.querySelectorAll<HTMLButtonElement>("[data-as-planned]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const meal = getMealPlan(date).find((item) => item.id === button.dataset.asPlanned);
+      if (meal) saveMeal(meal.id, meal.foods.map((food) => withSnapshot(food, actions.getProfiles())));
+    }),
+  );
+
   root.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((button) =>
     button.addEventListener("click", () => {
       const meal = getMealPlan(date).find((item) => item.id === button.dataset.edit);
       if (!meal) return;
       const entry = (state.diary[date] ?? []).find((item) => item.mealId === meal.id);
 
-      openMealEditor(meal, date, entry?.foods, actions.getProfiles, actions.saveProfile, (foods) => {
-        const next = clone(state.diary);
-        next[date] = [...(next[date] ?? []).filter((item) => item.mealId !== meal.id), { mealId: meal.id, foods }];
-        if (!actions.saveDiary(next)) return false;
-        actions.rerender();
-        return true;
-      });
+      openMealEditor(meal, date, entry?.foods, actions.getProfiles, actions.saveProfile, (foods) =>
+        saveMeal(meal.id, foods),
+      );
     }),
   );
 

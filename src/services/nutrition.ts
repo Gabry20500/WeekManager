@@ -138,6 +138,21 @@ export function createSnapshot(profile: Profile, amount: number, unit: string): 
   };
 }
 
+/** Foods that are deliberately left out of macro totals (e.g. coffee). */
+export function isExcludedFood(food: Food): boolean {
+  return EXCLUDED_NAMES.has(normalizeName(food.name));
+}
+
+/**
+ * Copy of a food linked to its catalog profile and carrying the nutrition
+ * computed now. Returned unchanged when no profile or conversion is available.
+ */
+export function withSnapshot(food: Food, available: Profile[]): Food {
+  const profile = findProfile(food, available);
+  const nutrition = profile && createSnapshot(profile, food.amount, food.unit);
+  return profile && nutrition ? { ...food, profileId: profile.id, nutrition } : { ...food };
+}
+
 /**
  * Sums the nutrition of a list of foods. Saved snapshots always win; with
  * `includeProfiles` foods without one are resolved against the catalog.
@@ -152,7 +167,7 @@ export function totalNutrition(foods: Food[], available: Profile[], includeProfi
   };
 
   for (const food of foods) {
-    if (EXCLUDED_NAMES.has(normalizeName(food.name))) {
+    if (isExcludedFood(food)) {
       result.excluded++;
       continue;
     }
