@@ -322,6 +322,103 @@ p {
   opacity: 0.85;
 }
 
+.button.small {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Shopping list rows and pantry lots */
+
+.list-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.check input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.list-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.list-copy strong {
+  font-size: 15px;
+}
+
+.list-copy small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.list-row.done .list-copy strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.meter {
+  height: 6px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  background: var(--surface-input);
+  border-radius: 3px;
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 3px;
+}
+
+.notice {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  color: #f0c66a;
+  background: #332b1b;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.form-dialog {
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+.form-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #ffd9d9;
+  background: #4a2020;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.field input[type="date"] {
+  min-height: 48px;
+}
+
 .bottom-nav {
   position: fixed;
   z-index: 10;

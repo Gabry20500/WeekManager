@@ -1,7 +1,7 @@
 import type { Diary, Food, PantryLot, Profile, ShoppingItem } from "../models/types";
 import { builtinProfiles } from "../data/food-catalog";
 import { MACRO_KEYS } from "./nutrition";
-import { dateKey, isFiniteNumber, isRecord, parseDate } from "../utils/helpers";
+import { isDateKey, isFiniteNumber, isRecord } from "../utils/helpers";
 
 export const DIARY_KEY = "diario-alimentare:diary:v1";
 export const PROFILE_KEY = "diario-alimentare:nutrition:v1";
@@ -10,8 +10,6 @@ export const PANTRY_KEY = "diario-alimentare:pantry:v1";
 
 const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY] as const;
 type ArchiveKey = (typeof ARCHIVE_KEYS)[number];
-
-const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Set when an archive cannot be read. While it is set every save is refused,
@@ -50,8 +48,7 @@ export function validDiary(value: unknown): value is Diary {
     isRecord(value) &&
     Object.entries(value).every(
       ([key, entries]) =>
-        DATE_KEY_PATTERN.test(key) &&
-        dateKey(parseDate(key)) === key &&
+        isDateKey(key) &&
         Array.isArray(entries) &&
         entries.every(
           (entry) =>

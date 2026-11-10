@@ -46,6 +46,23 @@ export function parseDate(date: string): Date {
   return new Date(`${date}T12:00:00`);
 }
 
+/** True for a real calendar day written as `YYYY-MM-DD`. */
+export function isDateKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && dateKey(parseDate(value)) === value;
+}
+
+/** Whole days from today to `date` (negative in the past); `undefined` if it is not a valid day. */
+export function daysUntil(date: string): number | undefined {
+  if (!isDateKey(date)) return undefined;
+  return Math.round((parseDate(date).getTime() - parseDate(todayKey()).getTime()) / 86_400_000);
+}
+
+/** Short Italian date ("10 nov 2026"); the raw text when it is not a valid day. */
+export function formatDate(date: string): string {
+  if (!isDateKey(date)) return date;
+  return parseDate(date).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function shiftDate(date: string, days: number): string {
   const next = parseDate(date);
   next.setDate(next.getDate() + days);

@@ -46,11 +46,14 @@ export type Diary = Record<string, Entry[]>;
 
 export type Screen = "today" | "shopping" | "weight";
 
-export type ShoppingUnit = "g" | "ml" | "pezzi" | "porzioni" | "confezioni";
+export const SHOPPING_UNITS = ["g", "ml", "pezzi", "porzioni", "confezioni"] as const;
+export type ShoppingUnit = (typeof SHOPPING_UNITS)[number];
 
-export type StorageLocation = "dispensa" | "frigorifero" | "freezer";
+export const STORAGE_LOCATIONS = ["dispensa", "frigorifero", "freezer"] as const;
+export type StorageLocation = (typeof STORAGE_LOCATIONS)[number];
 
-export type ExpiryKind = "use-by" | "best-before";
+export const EXPIRY_KINDS = ["best-before", "use-by"] as const;
+export type ExpiryKind = (typeof EXPIRY_KINDS)[number];
 
 export type ShoppingItem = {
   id: string;

@@ -1,5 +1,11 @@
-import type { ExpiryKind, PantryLot, ShoppingItem, ShoppingUnit, StorageLocation } from "../models/types";
-import { createId, format, html, parseDate, todayKey } from "../utils/helpers";
+import type { PantryLot, ShoppingItem, StorageLocation } from "../models/types";
+import {
+  LOCATION_LABELS,
+  openConsumeForm,
+  openPantryLotForm,
+  openShoppingItemForm,
+} from "../components/shopping-forms";
+import { createId, daysUntil, format, formatDate, html } from "../utils/helpers";
 
 export type ShoppingView = "shopping" | "pantry";
 
@@ -10,22 +16,37 @@ export type ShoppingActions = {
   rerender(): void;
 };
 
-const MS_PER_DAY = 86_400_000;
 /** Lots expiring within this many days are flagged. */
 const EXPIRING_SOON_DAYS = 3;
 
+type ExpiryStatus = "none" | "expired" | "soon" | "ok";
+
 /* ---------------------------------------------------------------
-   Rendering
+   Expiry
    --------------------------------------------------------------- */
 
-function expiryBadge(lot: PantryLot): string {
-  if (!lot.expiresAt) return '<span class="badge subtle">Nessuna scadenza</span>';
+function expiryStatus(lot: PantryLot): ExpiryStatus {
+  const days = lot.expiresAt ? daysUntil(lot.expiresAt) : undefined;
+  if (days === undefined) return "none";
+  if (days < 0) return "expired";
+  return days <= EXPIRING_SOON_DAYS ? "soon" : "ok";
+}
 
-  const today = parseDate(todayKey()).getTime();
-  const days = Math.floor((parseDate(lot.expiresAt).getTime() - today) / MS_PER_DAY);
-  if (days < 0) return '<span class="badge danger">Scaduto</span>';
-  if (days <= EXPIRING_SOON_DAYS) return '<span class="badge warning">In scadenza</span>';
-  return '<span class="badge success">Ok</span>';
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function expiryBadge(lot: PantryLot): string {
+  const days = lot.expiresAt ? daysUntil(lot.expiresAt) : undefined;
+  if (!lot.expiresAt) return '<span class="badge subtle">Senza scadenza</span>';
+  // Dates saved before the date picker existed may not be valid days.
+  if (days === undefined) return `<span class="badge subtle">Scade: ${html(lot.expiresAt)}</span>`;
+
+  if (days < 0) return `<span class="badge danger">Scaduto da ${plural(-days, "giorno", "giorni")}</span>`;
+  if (days === 0) return '<span class="badge warning">Scade oggi</span>';
+  if (days === 1) return '<span class="badge warning">Scade domani</span>';
+  if (days <= EXPIRING_SOON_DAYS) return `<span class="badge warning">Scade tra ${days} giorni</span>`;
+  return `<span class="badge success">Scade il ${formatDate(lot.expiresAt)}</span>`;
 }
 
 /** Earliest expiry first; lots without expiry last, by name. */
@@ -38,78 +59,105 @@ function sortPantry(lots: PantryLot[]): PantryLot[] {
   });
 }
 
+/* ---------------------------------------------------------------
+   Rendering
+   --------------------------------------------------------------- */
+
 function renderShoppingItem(item: ShoppingItem): string {
+  const name = html(item.name);
   return `
-    <article class="card compact-card">
-      <div class="section-heading">
-        <div>
-          <h2>${html(item.name)}</h2>
-          <p class="muted">${format(item.quantity)} ${html(item.unit)}${item.note ? ` · ${html(item.note)}` : ""}</p>
-        </div>
-        <span class="badge ${item.checked ? "success" : "subtle"}">${item.checked ? "Acquistato" : "Da comprare"}</span>
-      </div>
+    <article class="card list-row ${item.checked ? "done" : ""}">
+      <label class="check">
+        <input type="checkbox" data-shopping-toggle="${item.id}" ${item.checked ? "checked" : ""} aria-label="${name}: acquistato">
+        <span class="list-copy">
+          <strong>${name}</strong>
+          <small>${format(item.quantity)} ${html(item.unit)}${item.note ? ` · ${html(item.note)}` : ""}</small>
+        </span>
+      </label>
       <div class="actions">
-        <button class="button secondary" data-shopping-toggle="${item.id}">${item.checked ? "Segna da comprare" : "Segna acquistato"}</button>
-        <button class="button secondary" data-shopping-buy="${item.id}">Passa in dispensa</button>
-        <button class="button secondary" data-shopping-edit="${item.id}">Modifica</button>
-        <button class="button secondary" data-shopping-delete="${item.id}">Elimina</button>
+        <button class="button small ${item.checked ? "primary" : "secondary"}" data-shopping-buy="${item.id}">Metti in dispensa</button>
+        <button class="button small secondary" data-shopping-edit="${item.id}">Modifica</button>
+        <button class="button small secondary" data-shopping-delete="${item.id}">Elimina</button>
       </div>
     </article>`;
 }
 
 function renderPantryLot(lot: PantryLot): string {
   const unit = html(lot.unit);
+  const percent = Math.round((lot.quantityRemaining / lot.quantityInitial) * 100);
+  const location = LOCATION_LABELS[lot.location as StorageLocation] ?? lot.location;
+  const facts = [
+    html(location),
+    `acquistato il ${html(formatDate(lot.purchasedAt))}`,
+    lot.openedAt ? `aperto il ${html(formatDate(lot.openedAt))}` : "",
+    lot.note ? html(lot.note) : "",
+  ].filter(Boolean);
+
   return `
     <article class="card compact-card">
       <div class="section-heading">
         <div>
           <h2>${html(lot.name)}</h2>
-          <p class="muted">Residuo: ${format(lot.quantityRemaining)} ${unit} · Iniziale: ${format(lot.quantityInitial)} ${unit}</p>
+          <p class="muted">Restano ${format(lot.quantityRemaining)} ${unit} di ${format(lot.quantityInitial)} ${unit}</p>
         </div>
         ${expiryBadge(lot)}
       </div>
-      <dl class="details pantry-details">
-        <div><dt>Conservazione</dt><dd>${html(lot.location)}</dd></div>
-        <div><dt>Acquistato</dt><dd>${html(lot.purchasedAt)}</dd></div>
-        <div><dt>Aperto</dt><dd>${html(lot.openedAt || "—")}</dd></div>
-        <div><dt>Scadenza</dt><dd>${html(lot.expiresAt || "Nessuna")}</dd></div>
-      </dl>
+      <div class="meter" role="img" aria-label="Residuo ${percent}%"><span style="width: ${percent}%"></span></div>
+      <p class="help">${facts.join(" · ")}</p>
       <div class="actions">
-        <button class="button secondary" data-pantry-consume="${lot.id}">Consuma</button>
-        <button class="button secondary" data-pantry-edit="${lot.id}">Modifica</button>
-        <button class="button secondary" data-pantry-discard="${lot.id}">Scarta</button>
+        <button class="button small primary" data-pantry-consume="${lot.id}">Consuma</button>
+        <button class="button small secondary" data-pantry-edit="${lot.id}">Modifica</button>
+        <button class="button small secondary" data-pantry-discard="${lot.id}">Scarta</button>
       </div>
     </article>`;
 }
 
 function renderShoppingList(shopping: ShoppingItem[]): string {
-  const items = shopping.length
-    ? shopping.map(renderShoppingItem).join("")
-    : '<section class="card"><h2>Lista vuota</h2><p class="help">Aggiungi i prodotti che vuoi comprare.</p></section>';
+  // Items still to buy first; the original order is kept within each group.
+  const ordered = [...shopping.filter((item) => !item.checked), ...shopping.filter((item) => item.checked)];
+  const toBuy = shopping.filter((item) => !item.checked).length;
+  const bought = shopping.length - toBuy;
+
+  const summary = shopping.length
+    ? `${plural(toBuy, "voce da comprare", "voci da comprare")}${bought ? ` · ${plural(bought, "acquistata", "acquistate")}` : ""}`
+    : "Aggiungi i prodotti che vuoi comprare.";
 
   return `
     <section class="card">
       <div class="section-heading">
-        <div><h2>Lista della spesa</h2><p class="muted">Aggiunta manuale e passaggio in dispensa.</p></div>
+        <div><h2>Lista della spesa</h2><p class="muted">${summary}</p></div>
       </div>
-      <div class="actions"><button class="button primary" id="shopping-add">Aggiungi voce</button></div>
+      <div class="actions">
+        <button class="button primary" id="shopping-add">Aggiungi voce</button>
+        ${bought ? '<button class="button secondary" id="shopping-clear">Rimuovi acquistate</button>' : ""}
+      </div>
     </section>
-    ${items}`;
+    ${ordered.map(renderShoppingItem).join("")}`;
 }
 
 function renderPantry(pantry: PantryLot[]): string {
-  const lots = sortPantry(pantry.filter((lot) => lot.quantityRemaining > 0))
-    .map(renderPantryLot)
-    .join("");
+  const active = sortPantry(pantry.filter((lot) => lot.quantityRemaining > 0));
+  const expired = active.filter((lot) => expiryStatus(lot) === "expired").length;
+  const soon = active.filter((lot) => expiryStatus(lot) === "soon").length;
+
+  const alerts = [
+    expired ? plural(expired, "lotto scaduto", "lotti scaduti") : "",
+    soon ? `${soon} in scadenza entro ${EXPIRING_SOON_DAYS} giorni` : "",
+  ].filter(Boolean);
+
+  const summary = active.length
+    ? `${plural(active.length, "lotto attivo", "lotti attivi")}, ordinati per scadenza.`
+    : "Nessun lotto attivo registrato.";
 
   return `
     <section class="card">
       <div class="section-heading">
-        <div><h2>Dispensa</h2><p class="muted">Ogni acquisto resta un lotto separato.</p></div>
+        <div><h2>Dispensa</h2><p class="muted">${summary}</p></div>
       </div>
+      ${alerts.length ? `<p class="notice" role="status">${alerts.join(" · ")}</p>` : ""}
       <div class="actions"><button class="button primary" id="pantry-add">Aggiungi lotto</button></div>
     </section>
-    ${lots || '<section class="card"><h2>Dispensa vuota</h2><p class="help">Nessun lotto attivo registrato.</p></section>'}`;
+    ${active.map(renderPantryLot).join("")}`;
 }
 
 export function renderShoppingScreen(shopping: ShoppingItem[], pantry: PantryLot[], activeTab: ShoppingView): string {
@@ -132,58 +180,13 @@ export function renderShoppingScreen(shopping: ShoppingItem[], pantry: PantryLot
 }
 
 /* ---------------------------------------------------------------
-   Prompts
-   --------------------------------------------------------------- */
-
-function askOptional(label: string, current = ""): string | undefined {
-  return prompt(label, current)?.trim() || undefined;
-}
-
-/** Asks for a number; alerts and returns `undefined` when it is not accepted. */
-function askNumber(label: string, initial: string, accept: (value: number) => boolean, error: string): number | undefined {
-  const value = Number(prompt(label, initial));
-  if (Number.isFinite(value) && accept(value)) return value;
-  alert(error);
-  return undefined;
-}
-
-function askQuantity(label: string, initial: string): number | undefined {
-  return askNumber(label, initial, (value) => value > 0, "Inserisci una quantità valida.");
-}
-
-function askUnit(current: ShoppingUnit = "g"): ShoppingUnit {
-  return (prompt("Unità: g, ml, pezzi, porzioni, confezioni", current) || current) as ShoppingUnit;
-}
-
-function askLocation(current: StorageLocation = "dispensa"): StorageLocation {
-  return (prompt("Conservazione: dispensa, frigorifero, freezer", current) || current) as StorageLocation;
-}
-
-function askPurchaseDate(): string {
-  return prompt("Data acquisto (YYYY-MM-DD)", todayKey()) || todayKey();
-}
-
-function askOpenedAt(current?: string): string | undefined {
-  return askOptional("Data apertura facoltativa (YYYY-MM-DD)", current);
-}
-
-function askExpiry(current?: PantryLot): Pick<PantryLot, "expiresAt" | "expiryKind"> {
-  const expiresAt = askOptional("Scadenza facoltativa (YYYY-MM-DD)", current?.expiresAt);
-  if (!expiresAt) return { expiresAt: undefined, expiryKind: undefined };
-
-  const fallback = current?.expiryKind ?? "best-before";
-  const expiryKind = (prompt("Tipo scadenza: use-by oppure best-before", fallback) || fallback) as ExpiryKind;
-  return { expiresAt, expiryKind };
-}
-
-/* ---------------------------------------------------------------
    Events
    --------------------------------------------------------------- */
 
-/** Binds a click handler to every `[data-<attribute>]` button, passing its value. */
+/** Binds a click handler to every `[data-<attribute>]` element, passing its value. */
 function onClick(root: ParentNode, attribute: string, handler: (id: string) => void): void {
-  root.querySelectorAll<HTMLButtonElement>(`[data-${attribute}]`).forEach((button) => {
-    button.addEventListener("click", () => handler(button.getAttribute(`data-${attribute}`) ?? ""));
+  root.querySelectorAll<HTMLElement>(`[data-${attribute}]`).forEach((element) => {
+    element.addEventListener("click", () => handler(element.getAttribute(`data-${attribute}`) ?? ""));
   });
 }
 
@@ -193,23 +196,33 @@ function bindShoppingList(
   pantry: PantryLot[],
   actions: ShoppingActions,
 ): void {
-  const commit = (next: ShoppingItem[]) => {
-    if (actions.saveShopping(next)) actions.rerender();
+  const commit = (next: ShoppingItem[]): boolean => {
+    if (!actions.saveShopping(next)) return false;
+    actions.rerender();
+    return true;
   };
 
   root.querySelector("#shopping-add")?.addEventListener("click", () => {
-    const name = prompt("Nome prodotto")?.trim();
-    if (!name) return;
-    const quantity = askQuantity("Quantità", "1");
-    if (quantity === undefined) return;
-    const unit = askUnit();
-    const note = askOptional("Nota facoltativa");
-    const now = new Date().toISOString();
-    commit([...shopping, { id: createId(), name, quantity, unit, note, checked: false, createdAt: now }]);
+    openShoppingItemForm(undefined, (values) =>
+      commit([...shopping, { id: createId(), ...values, checked: false, createdAt: new Date().toISOString() }]),
+    );
+  });
+
+  root.querySelector("#shopping-clear")?.addEventListener("click", () => {
+    if (!confirm("Rimuovere dalla lista tutte le voci acquistate?")) return;
+    commit(shopping.filter((item) => !item.checked));
   });
 
   onClick(root, "shopping-toggle", (id) => {
     commit(shopping.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)));
+  });
+
+  onClick(root, "shopping-edit", (id) => {
+    const current = shopping.find((item) => item.id === id);
+    if (!current) return;
+    openShoppingItemForm(current, (values) =>
+      commit(shopping.map((item) => (item.id === id ? { ...item, ...values } : item))),
+    );
   });
 
   onClick(root, "shopping-delete", (id) => {
@@ -217,114 +230,64 @@ function bindShoppingList(
     commit(shopping.filter((item) => item.id !== id));
   });
 
-  onClick(root, "shopping-edit", (id) => {
-    const current = shopping.find((item) => item.id === id);
-    if (!current) return;
-    const name = prompt("Nome prodotto", current.name)?.trim();
-    if (!name) return;
-    const quantity = askQuantity("Quantità", String(current.quantity));
-    if (quantity === undefined) return;
-    const unit = askUnit(current.unit);
-    const note = askOptional("Nota facoltativa", current.note);
-    commit(shopping.map((item) => (item.id === id ? { ...item, name, quantity, unit, note } : item)));
-  });
-
+  // Buying an item turns it into a pantry lot and takes it off the list.
   onClick(root, "shopping-buy", (id) => {
     const item = shopping.find((entry) => entry.id === id);
     if (!item) return;
-    const purchasedAt = askPurchaseDate();
-    const location = askLocation();
-    const openedAt = askOpenedAt();
-    const expiry = askExpiry();
-    const now = new Date().toISOString();
-
-    const lot: PantryLot = {
-      id: createId(),
-      name: item.name,
-      quantityInitial: item.quantity,
-      quantityRemaining: item.quantity,
-      unit: item.unit,
-      note: item.note,
-      foodProfileId: item.foodProfileId,
-      location,
-      purchasedAt,
-      openedAt,
-      ...expiry,
-      createdAt: now,
-      updatedAt: now,
-    };
-    const nextShopping = shopping.map((entry) => (entry.id === id ? { ...entry, checked: true } : entry));
-
-    if (actions.savePantry([...pantry, lot]) && actions.saveShopping(nextShopping)) {
-      actions.setTab("pantry");
-      actions.rerender();
-    }
+    openPantryLotForm(
+      {
+        title: "Metti in dispensa",
+        submitLabel: "Aggiungi alla dispensa",
+        lot: { name: item.name, quantityInitial: item.quantity, unit: item.unit, note: item.note },
+      },
+      (values) => {
+        const now = new Date().toISOString();
+        const lot: PantryLot = {
+          id: createId(),
+          ...values,
+          foodProfileId: item.foodProfileId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        if (!actions.savePantry([...pantry, lot])) return false;
+        return commit(shopping.filter((entry) => entry.id !== id));
+      },
+    );
   });
 }
 
 function bindPantry(root: ParentNode, pantry: PantryLot[], actions: ShoppingActions): void {
-  const commit = (next: PantryLot[]) => {
-    if (actions.savePantry(next)) actions.rerender();
+  const commit = (next: PantryLot[]): boolean => {
+    if (!actions.savePantry(next)) return false;
+    actions.rerender();
+    return true;
   };
-  const update = (id: string, changes: Partial<PantryLot>) => {
+  const update = (id: string, changes: Partial<PantryLot>): boolean => {
     const updatedAt = new Date().toISOString();
-    commit(pantry.map((lot) => (lot.id === id ? { ...lot, ...changes, updatedAt } : lot)));
+    return commit(pantry.map((lot) => (lot.id === id ? { ...lot, ...changes, updatedAt } : lot)));
   };
 
   root.querySelector("#pantry-add")?.addEventListener("click", () => {
-    const name = prompt("Nome prodotto")?.trim();
-    if (!name) return;
-    const quantity = askQuantity("Quantità iniziale", "1");
-    if (quantity === undefined) return;
-    const unit = askUnit();
-    const location = askLocation();
-    const purchasedAt = askPurchaseDate();
-    const openedAt = askOpenedAt();
-    const expiry = askExpiry();
-    const note = askOptional("Nota facoltativa");
-    const now = new Date().toISOString();
-
-    commit([
-      ...pantry,
-      {
-        id: createId(),
-        name,
-        quantityInitial: quantity,
-        quantityRemaining: quantity,
-        unit,
-        note,
-        location,
-        purchasedAt,
-        openedAt,
-        ...expiry,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ]);
+    openPantryLotForm({ title: "Nuovo lotto", submitLabel: "Aggiungi alla dispensa" }, (values) => {
+      const now = new Date().toISOString();
+      return commit([...pantry, { id: createId(), ...values, createdAt: now, updatedAt: now }]);
+    });
   });
 
   onClick(root, "pantry-consume", (id) => {
     const lot = pantry.find((entry) => entry.id === id);
     if (!lot) return;
-    const amount = askQuantity(`Quanto vuoi consumare? (${lot.unit})`, "0");
-    if (amount === undefined) return;
-    if (amount > lot.quantityRemaining) return alert("La quantità supera il residuo disponibile.");
-    update(id, { quantityRemaining: Number((lot.quantityRemaining - amount).toFixed(2)) });
+    openConsumeForm(lot, (amount) =>
+      update(id, { quantityRemaining: Number((lot.quantityRemaining - amount).toFixed(2)) }),
+    );
   });
 
   onClick(root, "pantry-edit", (id) => {
     const lot = pantry.find((entry) => entry.id === id);
     if (!lot) return;
-    const quantityRemaining = askNumber(
-      "Quantità residua",
-      String(lot.quantityRemaining),
-      (value) => value >= 0 && value <= lot.quantityInitial,
-      "Inserisci una quantità residua valida.",
+    openPantryLotForm({ title: "Modifica lotto", submitLabel: "Salva", lot, editing: true }, (values) =>
+      update(id, values),
     );
-    if (quantityRemaining === undefined) return;
-    const location = askLocation(lot.location);
-    const openedAt = askOpenedAt(lot.openedAt);
-    update(id, { quantityRemaining, location, openedAt, ...askExpiry(lot) });
   });
 
   onClick(root, "pantry-discard", (id) => {
