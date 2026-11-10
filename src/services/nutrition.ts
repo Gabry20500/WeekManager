@@ -24,7 +24,7 @@ const STOP_WORDS =
   /\b(a|al|alla|allo|agli|alle|con|da|del|della|dello|dei|degli|delle|di|e|ed|in|il|lo|la|i|gli|le|per|su|tra|fra|gia|bianco|naturale|parzialmente|scremato|crudo|cotto|cotti|cotta|porzione|porzioni|pezzo|pezzi|fetta|fette|tazza|tazze|sostituzione|definire)\b/g;
 
 const normalizeCache = new Map<string, string>();
-const profileIndex = new WeakMap<Profile, { name: string; tokens: Set<string> }>();
+const profileIndex = new WeakMap<Profile, { name: string; aliases: Set<string>; tokens: Set<string> }>();
 
 /** Reduces a food name to its significant words, for matching against profiles. */
 function normalizeName(value: string): string {
@@ -50,12 +50,13 @@ function tokenize(value: string): string[] {
   return normalizeName(value).split(" ").filter(Boolean);
 }
 
-/** Normalized name and name + alias tokens, computed once per profile object. */
+/** Normalized name, aliases and name + alias tokens, computed once per profile object. */
 function indexProfile(profile: Profile) {
   let entry = profileIndex.get(profile);
   if (!entry) {
     entry = {
       name: normalizeName(profile.name),
+      aliases: new Set((profile.aliases ?? []).map(normalizeName).filter(Boolean)),
       tokens: new Set([profile.name, ...(profile.aliases ?? [])].flatMap(tokenize)),
     };
     profileIndex.set(profile, entry);
@@ -81,7 +82,8 @@ function scoreNameMatch(foodName: string, profile: Profile): number {
 
 /**
  * Resolves the nutrition profile of a food: explicit link first, then exact
- * normalized name, then the best fuzzy match above the threshold.
+ * normalized name, then exact alias, then the best fuzzy match above the
+ * threshold.
  */
 export function findProfile(food: Food, available: Profile[]): Profile | undefined {
   if (food.profileId) {
@@ -92,6 +94,9 @@ export function findProfile(food: Food, available: Profile[]): Profile | undefin
   const foodNorm = normalizeName(food.name);
   const exact = available.find((profile) => indexProfile(profile).name === foodNorm);
   if (exact) return exact;
+
+  const alias = foodNorm ? available.find((profile) => indexProfile(profile).aliases.has(foodNorm)) : undefined;
+  if (alias) return alias;
 
   let best: Profile | undefined;
   let bestScore = 0;

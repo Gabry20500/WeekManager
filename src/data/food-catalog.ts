@@ -1,6 +1,14 @@
 import type { Profile } from "../models/types";
 
+/** Ids of the profiles shipped with the app start with this prefix. */
+export const BUILTIN_PREFIX = "builtin-";
+
+export function isBuiltinProfile(profile: Profile): boolean {
+  return profile.id.startsWith(BUILTIN_PREFIX);
+}
+
 // Reference values, not individualized nutrition targets.
+// `portions` maps a unit to how many g (or ml) one of it weighs.
 export const builtinProfiles: Profile[] = [{
   "id": "builtin-pasta",
   "name": "Pasta di semola, secca",
@@ -35,11 +43,11 @@ export const builtinProfiles: Profile[] = [{
   "protein": 8.8,
   "carbs": 50,
   "fat": 3.5,
-  "portions": {},
+  "portions": { "fette": 50 },
   "category": "Pane",
   "aliases": ["Pane"],
   "source": "Project inVictus, tabella per 100 g — https://www.projectinvictus.it/calorie-alimenti/",
-  "note": "Valori di riferimento, non specifici della tua marca."
+  "note": "Valori di riferimento, non specifici della tua marca. 1 fetta = 50 g (fetta media di pagnotta)."
 }, {
   "id": "builtin-puffed-rice",
   "name": "Riso soffiato da colazione",
@@ -74,11 +82,11 @@ export const builtinProfiles: Profile[] = [{
   "protein": 0.5,
   "carbs": 58.7,
   "fat": 0,
-  "portions": {},
+  "portions": { "cucchiai": 20 },
   "category": "Colazione",
   "aliases": ["Marmellata"],
   "source": "CREA Centro di ricerca Alimenti e Nutrizione — https://www.alimentinutrizione.it/tabelle-nutrizionali/204500",
-  "note": "La fonte riporta grassi in tracce: approssimati a 0 per il calcolo. Valore generico."
+  "note": "La fonte riporta grassi in tracce: approssimati a 0 per il calcolo. Valore generico. 1 cucchiaio = 20 g."
 }, {
   "id": "builtin-yogurt",
   "name": "Yogurt greco bianco 0%, generico",
@@ -167,7 +175,7 @@ export const builtinProfiles: Profile[] = [{
   "fat": 5.5,
   "portions": {},
   "category": "Carne",
-  "aliases": [],
+  "aliases": ["Carne (a crudo)", "Carne"],
   "source": "Project inVictus, tabella per 100 g — https://www.projectinvictus.it/calorie-alimenti/",
   "note": "Valori di riferimento, non specifici della tua marca."
 }, {
@@ -204,11 +212,11 @@ export const builtinProfiles: Profile[] = [{
   "protein": 25.1,
   "carbs": 0,
   "fat": 0.3,
-  "portions": {},
+  "portions": { "scatolette": 52 },
   "category": "Pesce",
   "aliases": ["Tonno al naturale"],
   "source": "CREA Centro di ricerca Alimenti e Nutrizione — https://www.alimentinutrizione.it/tabelle-nutrizionali/123550",
-  "note": "Valori di riferimento, non specifici della tua marca."
+  "note": "Valori di riferimento, non specifici della tua marca. 1 scatoletta = 52 g sgocciolati (confezione da 80 g): controlla la tua."
 }, {
   "id": "builtin-egg",
   "name": "Uovo intero, crudo, senza guscio",
@@ -217,11 +225,11 @@ export const builtinProfiles: Profile[] = [{
   "protein": 12.6,
   "carbs": 0.7,
   "fat": 9.5,
-  "portions": {},
+  "portions": { "pezzi": 50 },
   "category": "Uova",
   "aliases": ["Uova"],
   "source": "Project inVictus, tabella per 100 g — https://www.projectinvictus.it/calorie-alimenti/",
-  "note": "Valori di riferimento, non specifici della tua marca."
+  "note": "Valori di riferimento, non specifici della tua marca. 1 pezzo = 50 g (uovo medio senza guscio)."
 }, {
   "id": "builtin-chickpeas",
   "name": "Ceci in scatola, scolati",
@@ -282,11 +290,11 @@ export const builtinProfiles: Profile[] = [{
   "protein": 0.3,
   "carbs": 13.8,
   "fat": 0.2,
-  "portions": {},
+  "portions": { "porzioni": 150, "pezzi": 150 },
   "category": "Frutta",
   "aliases": ["Mela"],
   "source": "Project inVictus, tabella per 100 g — https://www.projectinvictus.it/calorie-alimenti/",
-  "note": "Valori di riferimento, non specifici della tua marca."
+  "note": "Valori di riferimento, non specifici della tua marca. 1 porzione = 150 g (un frutto medio)."
 }, {
   "id": "builtin-pear",
   "name": "Pera, parte edibile",
@@ -466,7 +474,7 @@ export const builtinProfiles: Profile[] = [{
   "fat": 0.3,
   "portions": {},
   "category": "Verdura",
-  "aliases": [],
+  "aliases": ["Insalata"],
   "source": "Project inVictus, tabella per 100 g — https://www.projectinvictus.it/calorie-alimenti/",
   "note": "Valori di riferimento, non specifici della tua marca."
 }, {
@@ -521,4 +529,56 @@ export const builtinProfiles: Profile[] = [{
   "aliases": ["Latte parzialmente scremato"],
   "source": "La Cucina Italiana, per 100 ml — https://www.lacucinaitaliana.it/news/salute-e-nutrizione/latte-valori-nutrizionali/",
   "note": "Valori generici per 100 ml."
+}, {
+  "id": "builtin-vegetables",
+  "name": "Verdure miste, crude (media)",
+  "basis": "g",
+  "kcal": 26,
+  "protein": 1.6,
+  "carbs": 5.4,
+  "fat": 0.3,
+  "portions": {"porzioni": 200},
+  "category": "Verdura",
+  "aliases": ["Verdure", "Verdura"],
+  "source": "Media delle schede del catalogo per questa categoria.",
+  "note": "Stima: media delle 11 verdure in archivio. Scegli la verdura specifica per un valore preciso. 1 porzione = 200 g."
+}, {
+  "id": "builtin-fruit",
+  "name": "Frutta fresca mista (media)",
+  "basis": "g",
+  "kcal": 61,
+  "protein": 0.7,
+  "carbs": 15.7,
+  "fat": 0.2,
+  "portions": {"porzioni": 150, "pezzi": 150},
+  "category": "Frutta",
+  "aliases": ["Frutta"],
+  "source": "Media delle schede del catalogo per questa categoria.",
+  "note": "Stima: media dei 7 frutti in archivio. Scegli il frutto specifico per un valore preciso. 1 porzione = 150 g."
+}, {
+  "id": "builtin-legumes",
+  "name": "Legumi cotti, scolati (media)",
+  "basis": "g",
+  "kcal": 97,
+  "protein": 6.1,
+  "carbs": 14.5,
+  "fat": 1.3,
+  "portions": {},
+  "category": "Legumi",
+  "aliases": ["Legumi già cotti", "Legumi"],
+  "source": "Media delle schede del catalogo per questa categoria.",
+  "note": "Stima: media di ceci e fagioli borlotti in archivio."
+}, {
+  "id": "builtin-potatoes",
+  "name": "Patate, crude",
+  "basis": "g",
+  "kcal": 85,
+  "protein": 2.1,
+  "carbs": 17.9,
+  "fat": 1,
+  "portions": {},
+  "category": "Verdura",
+  "aliases": ["Patate (a crudo)"],
+  "source": "CREA Centro di ricerca Alimenti e Nutrizione, tabelle di composizione degli alimenti — https://www.alimentinutrizione.it/",
+  "note": "Valori di riferimento da verificare sulla tabella CREA."
 }];
