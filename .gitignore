@@ -11,6 +11,20 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
+coverage
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Claude Code: local worktrees and personal settings
+.claude/worktrees/
+.claude/settings.local.json
+
+# OS files
+Thumbs.db
 
 # Editor directories and files
 .vscode/*
