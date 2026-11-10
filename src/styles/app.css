@@ -1,0 +1,536 @@
+/* =========================================================
+   Variables and global settings
+   ========================================================= */
+
+:root {
+  color-scheme: dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  --green: #80d6ac;
+  --line: #2c3933;
+  --text: #e8f0eb;
+  --muted: #a4b5aa;
+  --background: #101613;
+  --surface: #18211c;
+  --surface-raised: #202c25;
+  --surface-input: #121b16;
+  --accent-background: #243e30;
+
+  color: var(--text);
+  background: var(--background);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #a2e5bd;
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+::selection {
+  color: #effff5;
+  background: #365e45;
+}
+
+.app-shell {
+  max-width: 760px;
+  min-height: 100dvh;
+  margin: 0 auto;
+}
+
+.topbar {
+  padding: 18px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 750;
+}
+
+.brand-mark {
+  padding: 7px 12px;
+  color: #102219;
+  background: var(--green);
+  border-radius: 10px;
+}
+
+.prototype {
+  padding: 9px 12px;
+  color: #e5cd94;
+  background: #332b1b;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+main {
+  padding: 24px 18px calc(110px + env(safe-area-inset-bottom));
+}
+
+h1 {
+  margin: 5px 0 8px;
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+h3 {
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+p {
+  line-height: 1.5;
+}
+
+.page-heading,
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-heading > div,
+.section-heading > div {
+  min-width: 0;
+}
+
+.section-heading p {
+  margin: 5px 0 0;
+}
+
+.eyebrow {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.6px;
+}
+
+.muted,
+.help,
+.date-weekday,
+.macro span,
+.macro small,
+.item-copy small,
+.details dt {
+  color: var(--muted);
+}
+
+.muted {
+  font-size: 13px;
+}
+
+.help {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.badge {
+  padding: 7px 10px;
+  color: #a2e5bd;
+  background: var(--accent-background);
+  border-radius: 20px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.badge.subtle {
+  color: #bccbc1;
+  background: var(--surface-raised);
+}
+
+.badge.success {
+  color: #0d2b19;
+  background: #7fd6a2;
+}
+
+.badge.warning {
+  color: #3b2500;
+  background: #f0c66a;
+}
+
+.badge.danger {
+  color: #ffe7e7;
+  background: #8b2d2d;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.date-controls {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px 40px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.date-controls button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 44px;
+  padding: 0;
+  color: var(--green);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.date-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  text-align: center;
+}
+
+.date-full {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.date-controls .today-icon.is-today {
+  color: #b3f1cc;
+  background: var(--accent-background);
+  border-color: #456f55;
+}
+
+.date-controls button:active {
+  background: #304a39;
+}
+
+.today-icon svg {
+  display: block;
+}
+
+.card {
+  margin-bottom: 15px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 4px 18px #00000020;
+}
+
+.compact-card {
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.macro {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.macro strong {
+  font-size: 24px;
+}
+
+.food-list {
+  margin: 0 0 17px;
+  padding: 0;
+  list-style: none;
+}
+
+.food-list li {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.food-list li:last-child {
+  border-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button {
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.primary {
+  color: #102219;
+  background: var(--green);
+}
+
+.secondary {
+  color: #a2e5bd;
+  background: var(--accent-background);
+}
+
+.full {
+  width: 100%;
+}
+
+.button:active {
+  opacity: 0.85;
+}
+
+.bottom-nav {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  max-width: 760px;
+  padding: 9px 10px calc(9px + env(safe-area-inset-bottom));
+  background: #18211cf5;
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.nav-item span {
+  font-size: 22px;
+  line-height: 24px;
+}
+
+.nav-item.selected {
+  color: #a2e5bd;
+  background: var(--accent-background);
+  font-weight: 750;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 20px;
+  padding: 4px;
+  background: #111a15;
+  border-radius: 12px;
+}
+
+.tabs button {
+  padding: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tabs button.active {
+  color: var(--green);
+  background: var(--surface-raised);
+  box-shadow: 0 2px 6px #00000025;
+}
+
+.details {
+  font-size: 13px;
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+
+.details dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.pantry-details div {
+  align-items: flex-start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 17px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  color: var(--text);
+  background: var(--surface-input);
+  border: 1px solid #3a4c40;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #8a9e90;
+  opacity: 1;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+dialog {
+  width: calc(100% - 36px);
+  max-width: 400px;
+  padding: 24px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid #3a4c40;
+  border-radius: 18px;
+  box-shadow: 0 20px 70px #00000060;
+}
+
+dialog::backdrop {
+  background: #000000a6;
+}
+
+#meal-editor {
+  max-width: 560px;
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+
+.editor-food {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-food .field {
+  margin: 12px 0;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editor-actions {
+  margin-top: 20px;
+}
+
+.empty-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 210px;
+  padding: 20px;
+  color: var(--muted);
+  background: var(--surface-input);
+  border: 1px dashed #3a4c40;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.empty-chart > span {
+  color: var(--green);
+  font-size: 38px;
+}
+
+.empty-chart p {
+  max-width: 280px;
+  font-size: 13px;
+}
+
+@media (min-width: 650px) {
+  main {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  .topbar {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+}

@@ -1,0 +1,895 @@
+/* =========================================================
+   Variables and global settings
+   ========================================================= */
+
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color: #192d28;
+  background: #f2f6f3;
+
+  --green: #246b50;
+  --line: #e2eae4;
+  --text: #192d28;
+  --muted: #697b72;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #cba53e;
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* =========================================================
+   Main layout
+   ========================================================= */
+
+.app-shell {
+  max-width: 760px;
+  min-height: 100dvh;
+  margin: 0 auto;
+}
+
+.topbar {
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  font-weight: 750;
+}
+
+.brand-mark {
+  padding: 7px 12px;
+
+  color: #fff;
+  background: var(--green);
+  border-radius: 10px;
+}
+
+.prototype {
+  padding: 9px 12px;
+
+  color: #695019;
+  background: #fff3d5;
+
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+main {
+  padding: 24px 18px calc(110px + env(safe-area-inset-bottom));
+}
+
+/* =========================================================
+   Typography and headings
+   ========================================================= */
+
+h1 {
+  margin: 5px 0 8px;
+
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+
+h2 {
+  margin: 0;
+
+  font-size: 17px;
+}
+
+h3 {
+  margin: 10px 0;
+
+  font-size: 16px;
+}
+
+p {
+  line-height: 1.5;
+}
+
+.page-heading,
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 16px;
+}
+
+.page-heading > div,
+.section-heading > div {
+  min-width: 0;
+}
+
+.section-heading p {
+  margin: 5px 0 0;
+}
+
+.eyebrow {
+  color: var(--green);
+
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.6px;
+}
+
+.muted {
+  color: var(--muted);
+
+  font-size: 13px;
+}
+
+.help {
+  color: var(--muted);
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   Badges and status labels
+   ========================================================= */
+
+.badge {
+  padding: 7px 10px;
+
+  color: #2d654b;
+  background: #e0eee4;
+  border-radius: 20px;
+
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.badge.subtle {
+  color: #65746b;
+  background: #eff2f0;
+}
+
+.status {
+  color: #758178;
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   Date navigation
+   ========================================================= */
+
+.date-controls {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px 40px;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 20px;
+}
+
+.date-controls button {
+  display: grid;
+  place-items: center;
+
+  width: 40px;
+  height: 44px;
+  padding: 0;
+
+  color: var(--green);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.date-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  min-width: 0;
+
+  text-align: center;
+}
+
+.date-weekday {
+  color: var(--muted);
+
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.date-full {
+  color: var(--text);
+
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.date-controls .today-icon.is-today {
+  background: #e0eee4;
+  border-color: #c9dfcf;
+}
+
+.date-controls button:active {
+  background: #edf3ef;
+}
+
+.today-icon svg {
+  display: block;
+}
+
+/* =========================================================
+   Cards
+   ========================================================= */
+
+.card {
+  margin-bottom: 15px;
+  padding: 18px;
+
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+
+  box-shadow: 0 4px 18px #13352204;
+}
+
+/* =========================================================
+   Macronutrient summary
+   ========================================================= */
+
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+
+  margin-top: 18px;
+}
+
+.macro {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  min-width: 0;
+}
+
+.macro span,
+.macro small {
+  color: var(--muted);
+
+  font-size: 11px;
+}
+
+.macro strong {
+  font-size: 24px;
+}
+
+/* =========================================================
+   Foods and meals
+   ========================================================= */
+
+.food-list {
+  margin: 0 0 17px;
+  padding: 0;
+
+  list-style: none;
+}
+
+.food-list li {
+  padding: 9px 0;
+
+  border-bottom: 1px solid #f1f4f2;
+
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.food-list li:last-child {
+  border-bottom: 0;
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button {
+  min-height: 44px;
+  padding: 12px 14px;
+
+  border: 0;
+  border-radius: 11px;
+
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.primary {
+  color: #fff;
+  background: var(--green);
+}
+
+.secondary {
+  color: var(--green);
+  background: #edf3ef;
+}
+
+.full {
+  width: 100%;
+}
+
+.button:active {
+  opacity: 0.85;
+}
+
+/* =========================================================
+   Bottom navigation
+   ========================================================= */
+
+.bottom-nav {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 50%;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  width: 100%;
+  max-width: 760px;
+  padding: 9px 10px calc(9px + env(safe-area-inset-bottom));
+
+  background: #fffffff5;
+  border-top: 1px solid var(--line);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  transform: translateX(-50%);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  padding: 8px;
+
+  color: #6b7a72;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+
+  font-size: 12px;
+}
+
+.nav-item span {
+  font-size: 22px;
+  line-height: 24px;
+}
+
+.nav-item.selected {
+  color: var(--green);
+  background: #e9f2ec;
+
+  font-weight: 750;
+}
+
+/* =========================================================
+   Shopping and pantry tabs
+   ========================================================= */
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  margin-bottom: 20px;
+  padding: 4px;
+
+  background: #e5ece7;
+  border-radius: 12px;
+}
+
+.tabs button {
+  padding: 12px;
+
+  color: #5b6c62;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+
+  font-size: 13px;
+}
+
+.tabs button.active {
+  color: var(--green);
+  background: #fff;
+
+  font-weight: 700;
+  box-shadow: 0 2px 6px #00000008;
+}
+
+.shopping-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  padding: 15px 0;
+
+  border-bottom: 1px solid var(--line);
+
+  cursor: pointer;
+}
+
+.shopping-row:last-child {
+  border-bottom: 0;
+}
+
+.shopping-row input {
+  flex-shrink: 0;
+
+  width: 22px;
+  height: 22px;
+
+  accent-color: var(--green);
+}
+
+.item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  min-width: 0;
+
+  overflow-wrap: anywhere;
+}
+
+.item-copy strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.item-copy small {
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.shopping-row input:checked + .item-copy {
+  opacity: 0.5;
+
+  text-decoration: line-through;
+}
+
+.stock-quantity {
+  margin: 16px 0;
+
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.details {
+  font-size: 13px;
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 9px 0;
+
+  border-top: 1px solid var(--line);
+}
+
+.details dt {
+  color: var(--muted);
+}
+
+.details dd {
+  margin: 0;
+
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   Form fields
+   ========================================================= */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  min-width: 0;
+  margin: 17px 0;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+
+  color: var(--text);
+  background: #fafcfb;
+  border: 1px solid #d6e0d9;
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 16px;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+/* =========================================================
+   Meal editor dialog
+   ========================================================= */
+
+dialog {
+  width: calc(100% - 36px);
+  max-width: 400px;
+  padding: 24px;
+
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+
+dialog::backdrop {
+  background: #172e2855;
+}
+
+#meal-editor {
+  max-width: 560px;
+  max-height: 85dvh;
+
+  overflow-y: auto;
+}
+
+.editor-food {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-food .field {
+  margin: 12px 0;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editor-actions {
+  margin-top: 20px;
+}
+
+/* =========================================================
+   Chart and empty state
+   ========================================================= */
+
+.empty-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 210px;
+  padding: 20px;
+
+  color: #6b7a72;
+  background: #f8faf8;
+  border: 1px dashed #d6e0d9;
+  border-radius: 12px;
+
+  text-align: center;
+}
+
+.empty-chart > span {
+  color: #78a08a;
+
+  font-size: 38px;
+}
+
+.empty-chart p {
+  max-width: 280px;
+
+  font-size: 13px;
+}
+
+/* =========================================================
+   Larger screens
+   ========================================================= */
+
+@media (min-width: 650px) {
+  main {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  .topbar {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  h1 {
+    font-size: 32px;
+  }
+}
+
+/* =========================================================
+   Dark theme overrides
+   ========================================================= */
+
+:root {
+  color-scheme: dark;
+
+  --green: #80d6ac;
+  --line: #2c3933;
+  --text: #e8f0eb;
+  --muted: #a4b5aa;
+
+  --background: #101613;
+  --surface: #18211c;
+  --surface-raised: #202c25;
+  --surface-input: #121b16;
+  --accent-background: #243e30;
+
+  color: var(--text);
+  background: var(--background);
+}
+
+body {
+  background: var(--background);
+}
+
+/* Header and information banner */
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand-mark {
+  color: #102219;
+  background: var(--green);
+}
+
+.prototype {
+  color: #e5cd94;
+  background: #332b1b;
+}
+
+/* Typography and status labels */
+
+.muted,
+.help,
+.date-weekday,
+.macro span,
+.macro small,
+.item-copy small,
+.details dt {
+  color: var(--muted);
+}
+
+.date-full {
+  color: var(--text);
+}
+
+.badge {
+  color: #a2e5bd;
+  background: var(--accent-background);
+}
+
+.badge.subtle {
+  color: #bccbc1;
+  background: var(--surface-raised);
+}
+
+.status {
+  color: var(--muted);
+}
+
+/* Date navigation */
+
+.date-controls button {
+  color: var(--green);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.date-controls .today-icon.is-today {
+  color: #b3f1cc;
+  background: var(--accent-background);
+  border-color: #456f55;
+}
+
+.date-controls button:active {
+  background: #304a39;
+}
+
+/* Cards and food lists */
+
+.card {
+  background: var(--surface);
+  border-color: var(--line);
+
+  box-shadow: 0 4px 18px #00000020;
+}
+
+.food-list li {
+  border-bottom-color: var(--line);
+}
+
+/* Buttons */
+
+.primary {
+  color: #102219;
+  background: var(--green);
+}
+
+.secondary {
+  color: #a2e5bd;
+  background: var(--accent-background);
+}
+
+/* Bottom navigation */
+
+.bottom-nav {
+  background: #18211cf5;
+  border-top-color: var(--line);
+}
+
+.nav-item {
+  color: var(--muted);
+}
+
+.nav-item.selected {
+  color: #a2e5bd;
+  background: var(--accent-background);
+}
+
+/* Shopping and pantry */
+
+.tabs {
+  background: #111a15;
+}
+
+.tabs button {
+  color: var(--muted);
+}
+
+.tabs button.active {
+  color: var(--green);
+  background: var(--surface-raised);
+
+  box-shadow: 0 2px 6px #00000025;
+}
+
+.shopping-row {
+  border-bottom-color: var(--line);
+}
+
+.shopping-row input {
+  accent-color: var(--green);
+}
+
+.details div {
+  border-top-color: var(--line);
+}
+
+/* Form fields */
+
+.field input,
+.field textarea,
+.field select {
+  color: var(--text);
+  background: var(--surface-input);
+  border-color: #3a4c40;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #8a9e90;
+  opacity: 1;
+}
+
+/* Meal editor dialog */
+
+dialog {
+  color: var(--text);
+  background: var(--surface);
+  border-color: #3a4c40;
+
+  box-shadow: 0 20px 70px #00000060;
+}
+
+dialog::backdrop {
+  background: #000000a6;
+}
+
+.editor-food {
+  border-bottom-color: var(--line);
+}
+
+/* Chart and empty state */
+
+.empty-chart {
+  color: var(--muted);
+  background: var(--surface-input);
+  border-color: #3a4c40;
+}
+
+.empty-chart > span {
+  color: var(--green);
+}
+
+/* Keyboard focus and text selection */
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-color: #a2e5bd;
+}
+
+::selection {
+  color: #effff5;
+  background: #365e45;
+}

@@ -1,0 +1,34 @@
+/* Nutrition library additions. Inherits the existing dark theme. */
+.nutrition-dialog {
+  width: calc(100% - 36px);
+  max-width: 560px;
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+.nutrition-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+.nutrition-profile-field .help {
+  font-weight: 400;
+  margin: 0;
+}
+.nutrition-dialog details {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.nutrition-dialog summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+.nutrition-dialog label.button {
+  cursor: pointer;
+}
+@media (max-width: 360px) {
+  .nutrition-input-grid {
+    grid-template-columns: 1fr;
+  }
+}
