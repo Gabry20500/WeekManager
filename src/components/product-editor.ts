@@ -1,8 +1,9 @@
 import type { Profile } from "../models/types";
+import { isBuiltinProfile } from "../data/food-catalog";
 import { validProfile } from "../services/storage";
+import { restoreFocus } from "../utils/focus";
 import { createId, html } from "../utils/helpers";
-
-const BUILTIN_PREFIX = "builtin-";
+import { showToast } from "./toast";
 
 const MACRO_FIELDS = [
   ["kcal", "Calorie (kcal)"],
@@ -29,6 +30,7 @@ export function openProductEditor(
     dialog.close();
     dialog.remove();
     onClose();
+    restoreFocus();
   };
 
   const show = (id?: string) => {
@@ -78,7 +80,7 @@ export function openProductEditor(
     dialog.querySelector<HTMLFormElement>("#product-form")!.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = new FormData(event.target as HTMLFormElement);
-      const isPersonal = product !== undefined && !product.id.startsWith(BUILTIN_PREFIX);
+      const isPersonal = product !== undefined && !isBuiltinProfile(product);
 
       const personal: Profile = {
         id: isPersonal ? product.id : `custom-${createId()}`,
@@ -94,7 +96,7 @@ export function openProductEditor(
       };
 
       if (!validProfile(personal) || !personal.source) {
-        alert("Controlla tutti i campi.");
+        showToast("Controlla tutti i campi.", { kind: "error" });
         return;
       }
       if (onSave(personal)) close();

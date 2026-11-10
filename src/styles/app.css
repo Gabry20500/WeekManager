@@ -69,7 +69,11 @@ select:focus-visible {
 }
 
 .topbar {
-  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
@@ -445,6 +449,73 @@ p {
   min-height: 48px;
 }
 
+/* Visible to screen readers only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+h1:focus {
+  outline: none;
+}
+
+/* Notifications */
+
+.toast-region {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  left: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 14px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 520px;
+  padding: 10px 10px 10px 16px;
+  color: var(--text);
+  background: #2a3a31;
+  border: 1px solid #456f55;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px #00000070;
+  font-size: 14px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.toast.error {
+  background: #4a2020;
+  border-color: #8b2d2d;
+}
+
+.toast-action,
+.toast-close {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #a2e5bd;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.toast-close {
+  color: var(--muted);
+  font-size: 20px;
+}
+
 .bottom-nav {
   position: fixed;
   z-index: 10;
@@ -619,6 +690,11 @@ dialog::backdrop {
   border-radius: 10px;
   font-size: 14px;
   text-align: left;
+}
+
+.food-result[aria-selected="true"] {
+  background: var(--accent-background);
+  border-color: var(--green);
 }
 
 .food-result small {

@@ -1,7 +1,12 @@
 import type { Diary, Food, PantryLot, Profile, ShoppingItem } from "../models/types";
-import { builtinProfiles } from "../data/food-catalog";
+import { builtinProfiles, isBuiltinProfile } from "../data/food-catalog";
 import { MACRO_KEYS } from "./nutrition";
+import { showToast } from "../components/toast";
 import { isDateKey, isFiniteNumber, isRecord } from "../utils/helpers";
+
+function showError(message: string): void {
+  showToast(message, { kind: "error" });
+}
 
 export const DIARY_KEY = "diario-alimentare:diary:v1";
 export const PROFILE_KEY = "diario-alimentare:nutrition:v1";
@@ -137,16 +142,19 @@ export function loadDiary(): Diary {
   );
 }
 
-/** Personal profiles first, then every built-in one that was not overridden. */
+/**
+ * Personal profiles first, then the built-in catalog. Built-in profiles are
+ * always taken from the app, so catalog updates reach existing users; copies
+ * of them found in older archives are ignored.
+ */
 export function loadProfiles(): Profile[] {
-  const personal = loadArchive(
+  const stored = loadArchive(
     PROFILE_KEY,
     validProfiles,
     [],
     "L’archivio nutrizionale non è leggibile. Il salvataggio è bloccato: conserva un backup dei dati originali.",
   );
-  const ids = new Set(personal.map((profile) => profile.id));
-  return [...personal, ...builtinProfiles.filter((profile) => !ids.has(profile.id))];
+  return [...stored.filter((profile) => !isBuiltinProfile(profile)), ...builtinProfiles];
 }
 
 export function loadShopping(): ShoppingItem[] {
@@ -170,14 +178,14 @@ export function loadPantry(): PantryLot[] {
 /** Persists one archive. Returns `false` (after telling the user) on failure. */
 export function save(key: ArchiveKey, value: unknown): boolean {
   if (storageWarning) {
-    alert(storageWarning);
+    showError(storageWarning);
     return false;
   }
   try {
     localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch {
-    alert("Salvataggio non riuscito. Nessuna modifica è stata confermata.");
+    showError("Salvataggio non riuscito. Nessuna modifica è stata confermata.");
     return false;
   }
 }
@@ -210,8 +218,20 @@ export function exportOriginalArchives(): void {
       "archivi-originali.json",
     );
   } catch {
-    alert("Impossibile esportare gli archivi originali.");
+    showError("Impossibile esportare gli archivi originali.");
   }
+}
+
+/** Everything the app stores, in the format `importBackup` reads back. */
+export function createBackup() {
+  return {
+    schemaVersion: 2,
+    exportedAt: new Date().toISOString(),
+    diary: loadDiary(),
+    profiles: loadProfiles().filter((profile) => !isBuiltinProfile(profile)),
+    shopping: loadShopping(),
+    pantry: loadPantry(),
+  };
 }
 
 type BackupContent = Partial<Record<ArchiveKey, unknown>>;
@@ -238,7 +258,7 @@ function readBackup(parsed: unknown): BackupContent | undefined {
  */
 export function importBackup(text: string): boolean {
   if (storageWarning) {
-    alert(storageWarning);
+    showError(storageWarning);
     return false;
   }
 
@@ -246,19 +266,19 @@ export function importBackup(text: string): boolean {
   try {
     parsed = JSON.parse(text);
   } catch {
-    alert("File JSON non valido.");
+    showError("File JSON non valido.");
     return false;
   }
 
   const backup = readBackup(parsed);
   if (!backup) {
-    alert("Formato del backup non riconosciuto. Nessun dato è stato modificato.");
+    showError("Formato del backup non riconosciuto. Nessun dato è stato modificato.");
     return false;
   }
 
   const profiles = backup[PROFILE_KEY] as Profile[] | undefined;
   if (profiles && new Set(profiles.map((profile) => profile.id)).size !== profiles.length) {
-    alert("Il file contiene schede duplicate.");
+    showError("Il file contiene schede duplicate.");
     return false;
   }
 
@@ -274,7 +294,7 @@ export function importBackup(text: string): boolean {
   try {
     previous = ARCHIVE_KEYS.map((key) => [key, localStorage.getItem(key)]);
   } catch {
-    alert("Impossibile leggere gli archivi attuali. Importazione annullata.");
+    showError("Impossibile leggere gli archivi attuali. Importazione annullata.");
     return false;
   }
 
@@ -289,9 +309,9 @@ export function importBackup(text: string): boolean {
         if (value === null) localStorage.removeItem(key);
         else localStorage.setItem(key, value);
       }
-      alert("Importazione non riuscita. Gli archivi precedenti sono stati ripristinati.");
+      showError("Importazione non riuscita. Gli archivi precedenti sono stati ripristinati.");
     } catch {
-      alert(
+      showError(
         "Importazione non riuscita e ripristino incompleto. Conserva il backup e non effettuare altre modifiche.",
       );
     }

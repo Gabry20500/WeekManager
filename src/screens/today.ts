@@ -5,6 +5,8 @@ import { findProfile, isExcludedFood, totalNutrition, withSnapshot } from "../se
 import { renderDayProgress } from "../components/macro-summary";
 import { openMealEditor } from "../components/meal-editor";
 import { openProductEditor } from "../components/product-editor";
+import { showToast } from "../components/toast";
+import { restoreFocus, setFocusTarget } from "../utils/focus";
 import { clone, format, formatMacros, html, isGymDay, parseDate, shiftDate, todayKey } from "../utils/helpers";
 
 export type TodayState = {
@@ -117,11 +119,18 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
     .querySelector("#products")
     ?.addEventListener("click", () => openProductEditor(actions.getProfiles(), actions.saveProfile, actions.rerender));
 
+  // The buttons of a meal change with its state: keep the focus on that meal.
+  const focusMeal = (mealId: string) => {
+    setFocusTarget(`[data-edit="${mealId}"]`);
+    restoreFocus();
+  };
+
   const saveMeal = (mealId: string, foods: Food[]): boolean => {
     const next = clone(state.diary);
     next[date] = [...(next[date] ?? []).filter((item) => item.mealId !== mealId), { mealId, foods }];
     if (!actions.saveDiary(next)) return false;
     actions.rerender();
+    focusMeal(mealId);
     return true;
   };
 
@@ -147,10 +156,27 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
 
   root.querySelectorAll<HTMLButtonElement>("[data-reset]").forEach((button) =>
     button.addEventListener("click", () => {
-      if (!confirm("Annullare la registrazione? Il menu previsto rimarrà disponibile.")) return;
+      const mealId = button.dataset.reset;
+      const removed = (state.diary[date] ?? []).find((item) => item.mealId === mealId);
+      if (!removed) return;
+
       const next = clone(state.diary);
-      next[date] = (next[date] ?? []).filter((item) => item.mealId !== button.dataset.reset);
-      if (actions.saveDiary(next)) actions.rerender();
+      next[date] = (next[date] ?? []).filter((item) => item.mealId !== mealId);
+      if (!actions.saveDiary(next)) return;
+      actions.rerender();
+      focusMeal(removed.mealId);
+
+      showToast("Registrazione annullata.", {
+        actionLabel: "Ripristina",
+        onAction: () => {
+          // Put the entry back, unless the meal was logged again meanwhile.
+          const current = clone(state.diary);
+          const entries = current[date] ?? [];
+          if (entries.some((item) => item.mealId === removed.mealId)) return;
+          current[date] = [...entries, removed];
+          if (actions.saveDiary(current)) actions.rerender();
+        },
+      });
     }),
   );
 }

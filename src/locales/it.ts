@@ -3,6 +3,7 @@ export const it = {
   today: "Oggi",
   shopping: "Spesa",
   weight: "Peso",
+  backup: "Backup",
   logMeal: "Registra",
   asPlanned: "Mangiato come previsto",
   changeMeal: "Modifica",

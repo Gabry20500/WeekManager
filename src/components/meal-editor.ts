@@ -2,7 +2,9 @@ import type { Food, Meal, Profile } from "../models/types";
 import { it } from "../locales/it";
 import { createSnapshot, findProfile, validSnapshot } from "../services/nutrition";
 import { clone, createFood, format, formatMacros, html, normalize } from "../utils/helpers";
+import { restoreFocus } from "../utils/focus";
 import { renderMacros } from "./macro-summary";
+import { showToast } from "./toast";
 import { openProductEditor } from "./product-editor";
 
 const UNITS = ["g", "ml", "pezzi", "fette", "scatolette", "cucchiai", "porzioni", "tazze"];
@@ -49,7 +51,11 @@ export function openMealEditor(
   const close = () => {
     dialog.close();
     dialog.remove();
+    restoreFocus();
   };
+
+  /** Hides the suggestion list that is currently open, if any. */
+  let closeSuggestions: (() => void) | undefined;
 
   const rows = () => Array.from(container.querySelectorAll<HTMLElement>("[data-food]"));
 
@@ -107,6 +113,7 @@ export function openMealEditor(
   function addRow(food: Food): void {
     const profile = findProfile(food, getProfiles());
     const units = [...new Set([...UNITS, food.unit])];
+    const resultsId = `results-${food.id}`;
 
     const row = document.createElement("div");
     row.className = "editor-food";
@@ -114,9 +121,11 @@ export function openMealEditor(
     if (profile) row.dataset.profileId = profile.id;
     row.innerHTML = `
       <label class="field">${it.searchFood}
-        <input data-name autocomplete="off" required maxlength="160" value="${html(food.name)}" placeholder="Es. pollo, mela, broccoli">
+        <input data-name autocomplete="off" required maxlength="160" value="${html(food.name)}" placeholder="Es. pollo, mela, broccoli"
+          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${resultsId}">
       </label>
-      <div data-results class="food-results" hidden></div>
+      <div data-results class="food-results" id="${resultsId}" role="listbox" aria-label="Alimenti trovati" hidden></div>
+      <span class="sr-only" role="status" data-results-status></span>
       <div class="editor-grid">
         <label class="field">Quantità mangiata
           <input data-amount type="number" inputmode="decimal" step="any" min="0.01" required value="${food.amount}">
@@ -135,6 +144,31 @@ export function openMealEditor(
     const amount = row.querySelector<HTMLInputElement>("[data-amount]")!;
     const unit = row.querySelector<HTMLSelectElement>("[data-unit]")!;
 
+    const status = row.querySelector<HTMLElement>("[data-results-status]")!;
+    /** Index of the suggestion highlighted with the arrow keys, or -1. */
+    let active = -1;
+
+    const options = () => Array.from(results.querySelectorAll<HTMLElement>('[role="option"]'));
+
+    const highlight = (index: number) => {
+      active = index;
+      options().forEach((option, position) => option.setAttribute("aria-selected", String(position === index)));
+      const current = options()[index];
+      if (current) {
+        input.setAttribute("aria-activedescendant", current.id);
+        current.scrollIntoView({ block: "nearest" });
+      } else {
+        input.removeAttribute("aria-activedescendant");
+      }
+    };
+
+    const hideResults = () => {
+      results.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      highlight(-1);
+      if (closeSuggestions === hideResults) closeSuggestions = undefined;
+    };
+
     const pick = (selected: Profile) => {
       input.value = selected.name;
       row.dataset.profileId = selected.id;
@@ -143,7 +177,7 @@ export function openMealEditor(
         unit.value = selected.basis;
         amount.value = "";
       }
-      results.hidden = true;
+      hideResults();
       updatePreview();
       amount.focus();
     };
@@ -162,13 +196,40 @@ export function openMealEditor(
       results.innerHTML = matches.length
         ? matches
             .map(
-              (item) =>
-                `<button type="button" class="food-result" data-pick="${html(item.id)}"><strong>${html(item.name)}</strong><small>${format(item.kcal)} kcal / 100 ${item.basis}</small></button>`,
+              (item, index) =>
+                `<button type="button" class="food-result" role="option" aria-selected="false" tabindex="-1" id="${resultsId}-${index}" data-pick="${html(item.id)}"><strong>${html(item.name)}</strong><small>${format(item.kcal)} kcal / 100 ${item.basis}</small></button>`,
             )
             .join("")
         : '<p class="help">Nessun risultato. Crea un prodotto personale oppure registra la voce come incompleta.</p>';
       results.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      highlight(-1);
+      status.textContent = matches.length
+        ? `${matches.length} ${matches.length === 1 ? "risultato" : "risultati"}. Usa le frecce per scegliere.`
+        : "Nessun risultato.";
+      closeSuggestions = hideResults;
     };
+
+    // Keep the focus in the field while a suggestion is being clicked.
+    results.addEventListener("mousedown", (event) => event.preventDefault());
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (results.hidden) suggest();
+        const count = options().length;
+        if (!count) return;
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        highlight(active < 0 ? (step > 0 ? 0 : count - 1) : (active + step + count) % count);
+      } else if (event.key === "Enter" && !results.hidden && active >= 0) {
+        // Choose the highlighted suggestion instead of submitting the meal.
+        event.preventDefault();
+        options()[active]?.click();
+      }
+    });
+    input.addEventListener("blur", (event) => {
+      if (!results.contains(event.relatedTarget as Node | null)) hideResults();
+    });
 
     // One delegated listener instead of one per suggestion on every keystroke.
     results.addEventListener("click", (event) => {
@@ -208,7 +269,9 @@ export function openMealEditor(
   dialog.querySelector("#cancel-meal")!.addEventListener("click", close);
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
-    close();
+    // Esc closes the open suggestion list first, then the editor.
+    if (closeSuggestions) closeSuggestions();
+    else close();
   });
 
   dialog.querySelector<HTMLFormElement>("#meal-form")!.addEventListener("submit", (event) => {
@@ -216,7 +279,7 @@ export function openMealEditor(
     const foods = rows().map(readRow);
 
     if (foods.some((food) => !food.name || !Number.isFinite(food.amount) || food.amount <= 0)) {
-      alert("Controlla nomi e quantità.");
+      showToast("Controlla nomi e quantità.", { kind: "error" });
       return;
     }
     const missing = foods.filter((food) => !validSnapshot(food.nutrition)).length;

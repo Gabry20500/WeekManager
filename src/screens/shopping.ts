@@ -5,12 +5,16 @@ import {
   openPantryLotForm,
   openShoppingItemForm,
 } from "../components/shopping-forms";
+import { showToast } from "../components/toast";
 import { createId, daysUntil, format, formatDate, html } from "../utils/helpers";
 
 export type ShoppingView = "shopping" | "pantry";
 
 export type ShoppingActions = {
   setTab(tab: ShoppingView): void;
+  /** Current data, for actions that run after the screen was redrawn (undo). */
+  getShopping(): ShoppingItem[];
+  getPantry(): PantryLot[];
   saveShopping(items: ShoppingItem[]): boolean;
   savePantry(lots: PantryLot[]): boolean;
   rerender(): void;
@@ -208,9 +212,25 @@ function bindShoppingList(
     );
   });
 
+  /** Removes items and offers to put them back. */
+  const remove = (removed: ShoppingItem[], message: string) => {
+    const ids = new Set(removed.map((item) => item.id));
+    if (!commit(shopping.filter((item) => !ids.has(item.id)))) return;
+    showToast(message, {
+      actionLabel: "Annulla",
+      onAction: () => {
+        const current = actions.getShopping();
+        const present = new Set(current.map((item) => item.id));
+        if (actions.saveShopping([...current, ...removed.filter((item) => !present.has(item.id))])) {
+          actions.rerender();
+        }
+      },
+    });
+  };
+
   root.querySelector("#shopping-clear")?.addEventListener("click", () => {
-    if (!confirm("Rimuovere dalla lista tutte le voci acquistate?")) return;
-    commit(shopping.filter((item) => !item.checked));
+    const bought = shopping.filter((item) => item.checked);
+    remove(bought, `${plural(bought.length, "voce rimossa", "voci rimosse")} dalla lista.`);
   });
 
   onClick(root, "shopping-toggle", (id) => {
@@ -226,8 +246,8 @@ function bindShoppingList(
   });
 
   onClick(root, "shopping-delete", (id) => {
-    if (!confirm("Eliminare questa voce dalla lista della spesa?")) return;
-    commit(shopping.filter((item) => item.id !== id));
+    const item = shopping.find((entry) => entry.id === id);
+    if (item) remove([item], `“${item.name}” eliminato dalla lista.`);
   });
 
   // Buying an item turns it into a pantry lot and takes it off the list.
@@ -291,8 +311,17 @@ function bindPantry(root: ParentNode, pantry: PantryLot[], actions: ShoppingActi
   });
 
   onClick(root, "pantry-discard", (id) => {
-    if (!confirm("Scartare questo lotto?")) return;
-    update(id, { quantityRemaining: 0 });
+    const lot = pantry.find((entry) => entry.id === id);
+    if (!lot || !update(id, { quantityRemaining: 0 })) return;
+    showToast(`“${lot.name}” scartato.`, {
+      actionLabel: "Annulla",
+      onAction: () => {
+        const restored = actions
+          .getPantry()
+          .map((entry) => (entry.id === id ? { ...entry, quantityRemaining: lot.quantityRemaining } : entry));
+        if (actions.savePantry(restored)) actions.rerender();
+      },
+    });
   });
 }
 

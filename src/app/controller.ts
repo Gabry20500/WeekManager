@@ -1,5 +1,8 @@
 import type { Diary, PantryLot, Profile, Screen, ShoppingItem } from "../models/types";
 import { it } from "../locales/it";
+import { isBuiltinProfile } from "../data/food-catalog";
+import { openDataDialog } from "../components/data-dialog";
+import { rememberFocus, restoreFocus, setFocusTarget, trackFocus } from "../utils/focus";
 import { html, todayKey } from "../utils/helpers";
 import {
   DIARY_KEY,
@@ -37,6 +40,15 @@ const NAV_ITEMS: readonly { screen: Screen; icon: string; label: string }[] = [
 let app: HTMLDivElement;
 let state: AppState;
 
+function loadData(): Pick<AppState, "diary" | "profiles" | "shopping" | "pantry"> {
+  return {
+    diary: loadDiary(),
+    profiles: loadProfiles(),
+    shopping: loadShopping(),
+    pantry: loadPantry(),
+  };
+}
+
 /* Each setter updates the in-memory state only after the save succeeded. */
 
 function saveDiary(next: Diary): boolean {
@@ -47,7 +59,8 @@ function saveDiary(next: Diary): boolean {
 
 function saveProfile(profile: Profile): boolean {
   const next = [...state.profiles.filter((item) => item.id !== profile.id), profile];
-  if (!save(PROFILE_KEY, next)) return false;
+  // Only personal profiles are stored; the built-in catalog ships with the app.
+  if (!save(PROFILE_KEY, next.filter((item) => !isBuiltinProfile(item)))) return false;
   state.profiles = next;
   return true;
 }
@@ -89,23 +102,40 @@ function renderStorageWarning(): string {
 }
 
 function render(): void {
+  rememberFocus();
   app.innerHTML = `
     <div class="app-shell">
-      <header class="topbar"><span class="brand"><span class="brand-mark">D</span>${it.appTitle}</span></header>
+      <header class="topbar">
+        <span class="brand"><span class="brand-mark" aria-hidden="true">D</span>${it.appTitle}</span>
+        <button class="button small secondary" id="open-data">${it.backup}</button>
+      </header>
       <aside class="prototype">Diario, alimenti e spesa attivi · peso in preparazione</aside>
       ${renderStorageWarning()}
       <main>${renderScreen()}</main>
       <nav class="bottom-nav" aria-label="Navigazione principale">${renderNavigation()}</nav>
     </div>`;
 
+  // The heading is the fallback focus target when a control disappears.
+  app.querySelector("h1")?.setAttribute("tabindex", "-1");
+  document.title = `${NAV_ITEMS.find((item) => item.screen === state.screen)?.label} – ${it.appTitle}`;
+
   app.querySelectorAll<HTMLButtonElement>("[data-screen]").forEach((button) =>
     button.addEventListener("click", () => {
       state.screen = button.dataset.screen as Screen;
       render();
+      // A new screen starts from its heading.
+      setFocusTarget("h1");
+      restoreFocus();
       window.scrollTo(0, 0);
     }),
   );
   app.querySelector("#export-original")?.addEventListener("click", exportOriginalArchives);
+  app.querySelector("#open-data")?.addEventListener("click", () =>
+    openDataDialog(() => {
+      Object.assign(state, loadData());
+      render();
+    }),
+  );
 
   if (state.screen === "today") {
     bindTodayScreen(app, state, {
@@ -125,22 +155,24 @@ function render(): void {
       setTab: (tab) => {
         state.shoppingTab = tab;
       },
+      getShopping: () => state.shopping,
+      getPantry: () => state.pantry,
       saveShopping,
       savePantry,
       rerender: render,
     });
   }
+
+  restoreFocus();
 }
 
 export function startApplication(): void {
   const element = document.querySelector<HTMLDivElement>("#app");
   if (!element) throw new Error("Missing #app element");
   app = element;
+  trackFocus(app);
   state = {
-    diary: loadDiary(),
-    profiles: loadProfiles(),
-    shopping: loadShopping(),
-    pantry: loadPantry(),
+    ...loadData(),
     screen: "today",
     shoppingTab: "shopping",
     selectedDate: todayKey(),

@@ -1,3 +1,4 @@
+import { restoreFocus } from "../utils/focus";
 import { html } from "../utils/helpers";
 
 /** `true` closes the dialog, `false` keeps it open, a string is shown as an error. */
@@ -13,32 +14,30 @@ export type FormDialogOptions = {
   onReady?(form: HTMLFormElement): void;
 };
 
-/** Opens a modal form with a title, the given fields and confirm / cancel buttons. */
-export function openFormDialog(options: FormDialogOptions): void {
+/**
+ * Opens a modal dialog with a title bar and the given body. Every
+ * `[data-close]` element and the Esc key close it; the focus then goes back
+ * to the control that opened it.
+ */
+export function openDialog(options: { title: string; body: string; className?: string }): {
+  dialog: HTMLDialogElement;
+  close(): void;
+} {
   const dialog = document.createElement("dialog");
-  dialog.className = "form-dialog";
+  dialog.className = options.className ?? "form-dialog";
   dialog.setAttribute("aria-label", options.title);
   dialog.innerHTML = `
     <div class="section-heading">
       <h2>${html(options.title)}</h2>
       <button class="button secondary" type="button" data-close>Chiudi</button>
     </div>
-    <form>
-      ${options.fields}
-      <p class="form-error" role="alert" hidden></p>
-      <div class="actions editor-actions">
-        <button type="submit" class="button primary">${html(options.submitLabel)}</button>
-        <button type="button" class="button secondary" data-close>Annulla</button>
-      </div>
-    </form>`;
+    ${options.body}`;
   document.body.appendChild(dialog);
-
-  const form = dialog.querySelector("form")!;
-  const error = dialog.querySelector<HTMLElement>(".form-error")!;
 
   const close = () => {
     dialog.close();
     dialog.remove();
+    restoreFocus();
   };
 
   dialog.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", close));
@@ -46,6 +45,28 @@ export function openFormDialog(options: FormDialogOptions): void {
     event.preventDefault();
     close();
   });
+
+  dialog.showModal();
+  return { dialog, close };
+}
+
+/** Opens a modal form with a title, the given fields and confirm / cancel buttons. */
+export function openFormDialog(options: FormDialogOptions): void {
+  const { dialog, close } = openDialog({
+    title: options.title,
+    body: `
+      <form>
+        ${options.fields}
+        <p class="form-error" role="alert" hidden></p>
+        <div class="actions editor-actions">
+          <button type="submit" class="button primary">${html(options.submitLabel)}</button>
+          <button type="button" class="button secondary" data-close>Annulla</button>
+        </div>
+      </form>`,
+  });
+
+  const form = dialog.querySelector("form")!;
+  const error = dialog.querySelector<HTMLElement>(".form-error")!;
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -56,7 +77,6 @@ export function openFormDialog(options: FormDialogOptions): void {
   });
 
   options.onReady?.(form);
-  dialog.showModal();
 }
 
 /* ---------------------------------------------------------------
