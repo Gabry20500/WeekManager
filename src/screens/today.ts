@@ -1,16 +1,19 @@
-import type { Diary, Food, Meal, Profile } from "../models/types";
+import type { Diary, Food, Meal, MealPlan, Profile } from "../models/types";
 import { it } from "../locales/it";
-import { getMealPlan } from "../data/meal-plan";
 import { findProfile, isExcludedFood, totalNutrition, withSnapshot } from "../services/nutrition";
+import { isGymDay, mealsForDate, sameFoods } from "../services/plan";
+import { recentProfileIds } from "../services/diary";
 import { renderDayProgress } from "../components/macro-summary";
 import { openMealEditor } from "../components/meal-editor";
 import { openProductEditor } from "../components/product-editor";
+import { icon } from "../components/icons";
 import { showToast } from "../components/toast";
 import { restoreFocus, setFocusTarget } from "../utils/focus";
-import { clone, format, formatMacros, html, isGymDay, parseDate, shiftDate, todayKey } from "../utils/helpers";
+import { clone, format, formatDate, formatMacrosHtml, html, parseDate, shiftDate, todayKey } from "../utils/helpers";
 
 export type TodayState = {
   diary: Diary;
+  plan: MealPlan;
   profiles: Profile[];
   selectedDate: string;
 };
@@ -33,13 +36,13 @@ function renderDateNavigation(selectedDate: string): string {
 
   return `
     <div class="date-controls">
-      <button id="previous" aria-label="Giorno precedente">←</button>
+      <button id="previous" aria-label="Giorno precedente">${icon("previous")}</button>
       <div class="date-label" aria-live="polite">
         <span class="date-weekday">${weekday}</span>
         <strong class="date-full">${full}</strong>
       </div>
-      <button id="next" aria-label="Giorno successivo">→</button>
-      <button id="go-today" class="today-icon ${isToday ? "is-today" : ""}" aria-label="Torna a oggi" title="Torna a oggi">📅</button>
+      <button id="next" aria-label="Giorno successivo">${icon("next")}</button>
+      <button id="go-today" class="today-icon ${isToday ? "is-today" : ""}" aria-label="Torna a oggi" title="Torna a oggi">${icon("calendar")}</button>
     </div>`;
 }
 
@@ -71,7 +74,7 @@ function renderMealCard(meal: Meal, state: TodayState): string {
     .join("");
 
   const summary = totals.known
-    ? `${totals.missing ? "Totale parziale" : "Stima"}: ${formatMacros(totals.total)}`
+    ? `${totals.missing ? "Totale parziale" : "Stima"}: ${formatMacrosHtml(totals.total)}`
     : totals.excluded
       ? "Solo alimenti esclusi dal calcolo macro."
       : "Alimenti o quantità da specificare.";
@@ -89,7 +92,7 @@ function renderMealCard(meal: Meal, state: TodayState): string {
 }
 
 export function renderTodayScreen(state: TodayState): string {
-  const plan = getMealPlan(state.selectedDate);
+  const plan = mealsForDate(state.plan, state.selectedDate);
   const planned = plan.flatMap((meal) => meal.foods);
   const consumed = (state.diary[state.selectedDate] ?? []).flatMap((entry) => entry.foods);
 
@@ -98,9 +101,9 @@ export function renderTodayScreen(state: TodayState): string {
       <div>
         <p class="eyebrow">DIARIO ALIMENTARE</p>
         <h1>La tua giornata</h1>
-        <p class="muted">Le macro previste arrivano dal piano, non dalla dispensa.</p>
+        <p class="muted">Registra i pasti: il previsto arriva dal tuo piano.</p>
       </div>
-      <span class="badge">${isGymDay(state.selectedDate) ? "Palestra" : "Riposo"}</span>
+      <span class="badge">${isGymDay(state.plan, state.selectedDate) ? "Palestra" : "Riposo"}</span>
     </section>
     ${renderDateNavigation(state.selectedDate)}
     ${renderDayProgress(planned, consumed, state.profiles)}
@@ -125,9 +128,9 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
     restoreFocus();
   };
 
-  const saveMeal = (mealId: string, foods: Food[]): boolean => {
+  const saveMeal = (mealId: string, foods: Food[], asPlanned: boolean): boolean => {
     const next = clone(state.diary);
-    next[date] = [...(next[date] ?? []).filter((item) => item.mealId !== mealId), { mealId, foods }];
+    next[date] = [...(next[date] ?? []).filter((item) => item.mealId !== mealId), { mealId, foods, asPlanned }];
     if (!actions.saveDiary(next)) return false;
     actions.rerender();
     focusMeal(mealId);
@@ -137,19 +140,24 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
   // Logs the planned foods as eaten, with the nutrition computed now.
   root.querySelectorAll<HTMLButtonElement>("[data-as-planned]").forEach((button) =>
     button.addEventListener("click", () => {
-      const meal = getMealPlan(date).find((item) => item.id === button.dataset.asPlanned);
-      if (meal) saveMeal(meal.id, meal.foods.map((food) => withSnapshot(food, actions.getProfiles())));
+      const meal = mealsForDate(state.plan, date).find((item) => item.id === button.dataset.asPlanned);
+      if (meal) saveMeal(meal.id, meal.foods.map((food) => withSnapshot(food, actions.getProfiles())), true);
     }),
   );
 
   root.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((button) =>
     button.addEventListener("click", () => {
-      const meal = getMealPlan(date).find((item) => item.id === button.dataset.edit);
+      const meal = mealsForDate(state.plan, date).find((item) => item.id === button.dataset.edit);
       if (!meal) return;
       const entry = (state.diary[date] ?? []).find((item) => item.mealId === meal.id);
 
-      openMealEditor(meal, date, entry?.foods, actions.getProfiles, actions.saveProfile, (foods) =>
-        saveMeal(meal.id, foods),
+      openMealEditor(
+        meal,
+        { subtitle: formatDate(date), recent: recentProfileIds(state.diary) },
+        entry?.foods,
+        actions.getProfiles,
+        actions.saveProfile,
+        (foods) => saveMeal(meal.id, foods, meal.foods.length > 0 && sameFoods(foods, meal.foods)),
       );
     }),
   );

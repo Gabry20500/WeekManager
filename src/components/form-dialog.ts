@@ -1,5 +1,6 @@
 import { restoreFocus } from "../utils/focus";
 import { html } from "../utils/helpers";
+import { releaseToasts } from "./toast";
 
 /** `true` closes the dialog, `false` keeps it open, a string is shown as an error. */
 export type FormResult = boolean | string;
@@ -35,6 +36,7 @@ export function openDialog(options: { title: string; body: string; className?: s
   document.body.appendChild(dialog);
 
   const close = () => {
+    releaseToasts(dialog);
     dialog.close();
     dialog.remove();
     restoreFocus();

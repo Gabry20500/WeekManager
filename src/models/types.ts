@@ -40,11 +40,20 @@ export type Meal = {
 export type Entry = {
   mealId: string;
   foods: Food[];
+  /** Logged exactly as the plan said. Missing in entries saved by older versions. */
+  asPlanned?: boolean;
+};
+
+export type MealPlan = {
+  /** Meals of each weekday, indexed by `Date.getDay()`: 0 is Sunday. */
+  days: Meal[][];
+  /** Weekdays (`Date.getDay()` numbers) that are gym days. */
+  gymDays: number[];
 };
 
 export type Diary = Record<string, Entry[]>;
 
-export type Screen = "today" | "shopping" | "weight";
+export type Screen = "today" | "plan" | "shopping" | "weight";
 
 export type WeightEntry = {
   /** Day of the weigh-in, `YYYY-MM-DD`. At most one per day. */
@@ -57,6 +66,10 @@ export type WeightLog = {
   entries: WeightEntry[];
   goalKg?: number;
 };
+
+/** Units a food amount can be given in, besides the profile basis (g or ml). */
+export const PORTION_UNITS = ["pezzi", "fette", "scatolette", "cucchiai", "porzioni", "tazze"] as const;
+export type PortionUnit = (typeof PORTION_UNITS)[number];
 
 export const SHOPPING_UNITS = ["g", "ml", "pezzi", "porzioni", "confezioni"] as const;
 export type ShoppingUnit = (typeof SHOPPING_UNITS)[number];

@@ -1,6 +1,6 @@
 import type { Food, Profile } from "../models/types";
 import { MACRO_KEYS, totalNutrition } from "../services/nutrition";
-import { format, formatMacros, html } from "../utils/helpers";
+import { format, formatMacrosHtml, html } from "../utils/helpers";
 
 const MACRO_LABELS = {
   kcal: ["Calorie", "kcal"],
@@ -23,7 +23,7 @@ export function renderMacros(foods: Food[], profiles: Profile[], title: string, 
   const badge = result.known ? (result.missing ? "Parziale" : "Calcolato") : "Da completare";
 
   const details = result.known
-    ? `${result.missing ? "Valori parziali" : "Valori stimati"}: ${formatMacros(result.total)}`
+    ? `${result.missing ? "Valori parziali" : "Valori stimati"}: ${formatMacrosHtml(result.total)}`
     : "Nessun macro calcolato.";
 
   const notes = [
@@ -68,7 +68,7 @@ export function renderDayProgress(planned: Food[], consumed: Food[], profiles: P
 
     return `
       <div class="progress-row">
-        <div class="progress-head"><span>${label}</span><strong>${amounts}</strong></div>
+        <div class="progress-head"><span>${label}${ratio > 1 ? ' <span class="over-note">· oltre il previsto</span>' : ""}</span><strong>${amounts}</strong></div>
         <div class="meter ${ratio > 1 ? "over" : ""}" role="img" aria-label="${label}: ${Math.round(ratio * 100)}% del previsto"><span style="width: ${percent}%"></span></div>
       </div>`;
   }).join("");

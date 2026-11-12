@@ -1,8 +1,9 @@
 export const it = {
   appTitle: "Diario alimentare",
   today: "Oggi",
+  plan: "Piano",
   shopping: "Spesa",
-  weight: "Peso",
+  trends: "Andamento",
   backup: "Backup",
   weightSaved: "Pesata salvata.",
   weightUpdated: "Pesata aggiornata.",

@@ -12,13 +12,27 @@ const ACTION_DURATION = 8000;
 
 let region: HTMLElement | undefined;
 
+/** Where toasts must live to be visible: the topmost open dialog, else the page. */
+function currentHost(except?: Element): Element {
+  const dialogs = [...document.querySelectorAll("dialog[open]")].filter((dialog) => dialog !== except);
+  return dialogs.at(-1) ?? document.body;
+}
+
+/**
+ * Call before removing a dialog: a toast shown from inside it (e.g. "saved,
+ * undo?") moves out and stays visible after the dialog is gone.
+ */
+export function releaseToasts(dialog: Element): void {
+  if (region && dialog.contains(region)) currentHost(dialog).appendChild(region);
+}
+
 /**
  * Shows a short message at the bottom of the screen, replacing the previous
  * one. The countdown pauses while the toast is hovered or focused.
  */
 export function showToast(message: string, options: ToastOptions = {}): void {
   // A modal dialog covers the page, so the toast must live inside it.
-  const host = [...document.querySelectorAll("dialog[open]")].at(-1) ?? document.body;
+  const host = currentHost();
   if (!region) {
     region = document.createElement("div");
     region.className = "toast-region";

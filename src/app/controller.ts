@@ -1,12 +1,14 @@
-import type { Diary, PantryLot, Profile, Screen, ShoppingItem, WeightLog } from "../models/types";
+import type { Diary, MealPlan, PantryLot, Profile, Screen, ShoppingItem, WeightLog } from "../models/types";
 import { it } from "../locales/it";
 import { isBuiltinProfile } from "../data/food-catalog";
 import { openDataDialog } from "../components/data-dialog";
+import { icon, type IconName } from "../components/icons";
 import { rememberFocus, restoreFocus, setFocusTarget, trackFocus } from "../utils/focus";
 import { html, todayKey } from "../utils/helpers";
 import {
   DIARY_KEY,
   PANTRY_KEY,
+  PLAN_KEY,
   PROFILE_KEY,
   SHOPPING_KEY,
   WEIGHT_KEY,
@@ -14,14 +16,22 @@ import {
   getStorageWarning,
   loadDiary,
   loadPantry,
+  loadPlan,
   loadProfiles,
   loadShopping,
   loadWeight,
   save,
 } from "../services/storage";
+import { bindPlanScreen, renderPlanScreen } from "../screens/plan";
 import { bindShoppingScreen, renderShoppingScreen, type ShoppingView } from "../screens/shopping";
 import { bindTodayScreen, renderTodayScreen } from "../screens/today";
-import { bindWeightScreen, renderWeightScreen, type WeightRange } from "../screens/weight";
+import {
+  bindTrendsScreen,
+  renderTrendsScreen,
+  type CaloriesRange,
+  type TrendsTab,
+} from "../screens/trends";
+import type { WeightRange } from "../screens/weight";
 
 type AppState = {
   diary: Diary;
@@ -29,29 +39,36 @@ type AppState = {
   shopping: ShoppingItem[];
   pantry: PantryLot[];
   weight: WeightLog;
+  plan: MealPlan;
+  /** Weekday shown in the Plan screen, as a `Date.getDay()` number. */
+  planWeekday: number;
   weightRange: WeightRange;
   weightShowAll: boolean;
+  trendsTab: TrendsTab;
+  caloriesRange: CaloriesRange;
   screen: Screen;
   shoppingTab: ShoppingView;
   selectedDate: string;
 };
 
-const NAV_ITEMS: readonly { screen: Screen; icon: string; label: string }[] = [
-  { screen: "today", icon: "☀", label: it.today },
-  { screen: "shopping", icon: "▤", label: it.shopping },
-  { screen: "weight", icon: "↗", label: it.weight },
+const NAV_ITEMS: readonly { screen: Screen; icon: IconName; label: string }[] = [
+  { screen: "today", icon: "today", label: it.today },
+  { screen: "plan", icon: "plan", label: it.plan },
+  { screen: "shopping", icon: "shopping", label: it.shopping },
+  { screen: "weight", icon: "trends", label: it.trends },
 ];
 
 let app: HTMLDivElement;
 let state: AppState;
 
-function loadData(): Pick<AppState, "diary" | "profiles" | "shopping" | "pantry" | "weight"> {
+function loadData(): Pick<AppState, "diary" | "profiles" | "shopping" | "pantry" | "weight" | "plan"> {
   return {
     diary: loadDiary(),
     profiles: loadProfiles(),
     shopping: loadShopping(),
     pantry: loadPantry(),
     weight: loadWeight(),
+    plan: loadPlan(),
   };
 }
 
@@ -64,9 +81,12 @@ function saveDiary(next: Diary): boolean {
 }
 
 function saveProfile(profile: Profile): boolean {
-  const next = [...state.profiles.filter((item) => item.id !== profile.id), profile];
+  // Personal profiles come first so they win over the built-in ones they replace.
+  const others = state.profiles.filter((item) => item.id !== profile.id);
+  const personal = [...others.filter((item) => !isBuiltinProfile(item)), profile];
+  const next = [...personal, ...others.filter(isBuiltinProfile)];
   // Only personal profiles are stored; the built-in catalog ships with the app.
-  if (!save(PROFILE_KEY, next.filter((item) => !isBuiltinProfile(item)))) return false;
+  if (!save(PROFILE_KEY, personal)) return false;
   state.profiles = next;
   return true;
 }
@@ -83,6 +103,12 @@ function savePantry(next: PantryLot[]): boolean {
   return true;
 }
 
+function savePlan(next: MealPlan): boolean {
+  if (!save(PLAN_KEY, next)) return false;
+  state.plan = next;
+  return true;
+}
+
 function saveWeight(next: WeightLog): boolean {
   if (!save(WEIGHT_KEY, next)) return false;
   state.weight = next;
@@ -93,17 +119,19 @@ function renderScreen(): string {
   switch (state.screen) {
     case "today":
       return renderTodayScreen(state);
+    case "plan":
+      return renderPlanScreen(state);
     case "shopping":
       return renderShoppingScreen(state.shopping, state.pantry, state.shoppingTab);
     case "weight":
-      return renderWeightScreen(state);
+      return renderTrendsScreen(state);
   }
 }
 
 function renderNavigation(): string {
-  return NAV_ITEMS.map(({ screen, icon, label }) => {
-    const selected = screen === state.screen;
-    return `<button class="nav-item ${selected ? "selected" : ""}" data-screen="${screen}" ${selected ? 'aria-current="page"' : ""}><span aria-hidden="true">${icon}</span>${label}</button>`;
+  return NAV_ITEMS.map((item) => {
+    const selected = item.screen === state.screen;
+    return `<button class="nav-item ${selected ? "selected" : ""}" data-screen="${item.screen}" ${selected ? 'aria-current="page"' : ""}>${icon(item.icon)}${item.label}</button>`;
   }).join("");
 }
 
@@ -174,8 +202,27 @@ function render(): void {
     });
   }
 
+  if (state.screen === "plan") {
+    bindPlanScreen(app, state, {
+      savePlan,
+      getPlan: () => state.plan,
+      setWeekday: (weekday) => {
+        state.planWeekday = weekday;
+      },
+      saveProfile,
+      getProfiles: () => state.profiles,
+      rerender: render,
+    });
+  }
+
   if (state.screen === "weight") {
-    bindWeightScreen(app, state, {
+    bindTrendsScreen(app, state, {
+      setTab: (tab) => {
+        state.trendsTab = tab;
+      },
+      setCaloriesRange: (range) => {
+        state.caloriesRange = range;
+      },
       saveWeight,
       getWeight: () => state.weight,
       setRange: (range) => {
@@ -200,8 +247,11 @@ export function startApplication(): void {
     ...loadData(),
     screen: "today",
     shoppingTab: "shopping",
+    planWeekday: new Date().getDay(),
     weightRange: "90",
     weightShowAll: false,
+    trendsTab: "weight",
+    caloriesRange: "14",
     selectedDate: todayKey(),
   };
   render();

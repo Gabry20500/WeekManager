@@ -166,22 +166,17 @@ function renderTable(points: WeightPoint[], showAll: boolean): string {
     </section>`;
 }
 
-export function renderWeightScreen(state: WeightState): string {
+/** The weight part of the Trends screen: summary, form, chart and table. */
+export function renderWeightSection(state: WeightState): string {
   const points = withMovingAverage(state.weight.entries);
   return `
-    <section class="page-heading">
-      <div>
-        <p class="eyebrow">ANDAMENTO</p>
-        <h1>Peso</h1>
-      </div>
-    </section>
     ${renderSummary(points, state.weight.goalKg)}
     ${renderForm(points)}
     ${renderChartCard(points, state)}
     ${renderTable(points, state.weightShowAll)}`;
 }
 
-export function bindWeightScreen(root: ParentNode, state: WeightState, actions: WeightActions): void {
+export function bindWeightSection(root: ParentNode, state: WeightState, actions: WeightActions): void {
   const points = withMovingAverage(state.weight.entries);
   bindWeightChart(root, rangePoints(points, state.weightRange), state.weight.goalKg);
 

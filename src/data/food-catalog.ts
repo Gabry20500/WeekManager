@@ -579,6 +579,6 @@ export const builtinProfiles: Profile[] = [{
   "portions": {},
   "category": "Verdura",
   "aliases": ["Patate (a crudo)"],
-  "source": "CREA Centro di ricerca Alimenti e Nutrizione, tabelle di composizione degli alimenti — https://www.alimentinutrizione.it/",
-  "note": "Valori di riferimento da verificare sulla tabella CREA."
+  "source": "Tabelle di composizione INRAN, riportate da my-personaltrainer.it — https://www.my-personaltrainer.it/tabelle-nutrizionali/PATATE-CRUDE.htm",
+  "note": "Valori di riferimento per patate crude, non specifici della varietà."
 }];

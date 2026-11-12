@@ -8,8 +8,6 @@ const HTML_ESCAPES: Record<string, string> = {
   "'": "&#39;",
 };
 
-const GYM_WEEKDAYS = [1, 3, 5];
-
 export function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -69,10 +67,6 @@ export function shiftDate(date: string, days: number): string {
   return dateKey(next);
 }
 
-export function isGymDay(date: string): boolean {
-  return GYM_WEEKDAYS.includes(parseDate(date).getDay());
-}
-
 /** Escapes text for safe interpolation into HTML content and attributes. */
 export function html(value: string): string {
   return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
@@ -82,8 +76,14 @@ export function format(value: number): string {
   return value.toLocaleString("it-IT", { maximumFractionDigits: 1 });
 }
 
-export function formatMacros(value: Nutrients): string {
-  return `${format(value.kcal)} kcal · P ${format(value.protein)} g · C ${format(value.carbs)} g · G ${format(value.fat)} g`;
+/**
+ * Compact macro line as HTML ("530 kcal · P 30 g · C 58 g · G 14 g"). The
+ * single letters are spelled out for screen readers.
+ */
+export function formatMacrosHtml(value: Nutrients): string {
+  const macro = (letter: string, name: string, grams: number) =>
+    `<span aria-hidden="true">${letter}</span><span class="sr-only">${name}</span> ${format(grams)} g`;
+  return `${format(value.kcal)} kcal · ${macro("P", "proteine", value.protein)} · ${macro("C", "carboidrati", value.carbs)} · ${macro("G", "grassi", value.fat)}`;
 }
 
 /** Accent- and case-insensitive form used for search. */

@@ -1,9 +1,9 @@
-import type { Profile } from "../models/types";
+import { PORTION_UNITS, type PortionUnit, type Profile } from "../models/types";
 import { isBuiltinProfile } from "../data/food-catalog";
 import { validProfile } from "../services/storage";
 import { restoreFocus } from "../utils/focus";
 import { createId, html } from "../utils/helpers";
-import { showToast } from "./toast";
+import { releaseToasts, showToast } from "./toast";
 
 const MACRO_FIELDS = [
   ["kcal", "Calorie (kcal)"],
@@ -11,6 +11,16 @@ const MACRO_FIELDS = [
   ["carbs", "Carboidrati (g)"],
   ["fat", "Grassi (g)"],
 ] as const;
+
+/** How one unit is named in the conversion fields. */
+const PORTION_LABELS: Record<PortionUnit, string> = {
+  pezzi: "1 pezzo",
+  fette: "1 fetta",
+  scatolette: "1 scatoletta",
+  cucchiai: "1 cucchiaio",
+  porzioni: "1 porzione",
+  tazze: "1 tazza",
+};
 
 /**
  * Modal editor for nutrition profiles. Editing a built-in profile saves a
@@ -27,6 +37,7 @@ export function openProductEditor(
   document.body.appendChild(dialog);
 
   const close = () => {
+    releaseToasts(dialog);
     dialog.close();
     dialog.remove();
     onClose();
@@ -38,12 +49,18 @@ export function openProductEditor(
 
     const options = profiles
       .map(
-        (item) => `<option value="${html(item.id)}" ${id === item.id ? "selected" : ""}>${html(item.name)}</option>`,
+        (item) =>
+          `<option value="${html(item.id)}" ${id === item.id ? "selected" : ""}>${html(item.name)}${isBuiltinProfile(item) ? "" : " (personale)"}</option>`,
       )
       .join("");
     const macroInputs = MACRO_FIELDS.map(
       ([key, label]) =>
         `<label class="field">${label}<input name="${key}" type="number" min="0" step="any" inputmode="decimal" required value="${product ? product[key] : ""}"></label>`,
+    ).join("");
+
+    const portionInputs = PORTION_UNITS.map(
+      (unit) =>
+        `<label class="field">${PORTION_LABELS[unit]} =<input name="portion-${unit}" type="number" min="0" step="any" inputmode="decimal" placeholder="g o ml" value="${product?.portions[unit] ?? ""}"></label>`,
     ).join("");
 
     dialog.innerHTML = `
@@ -68,7 +85,12 @@ export function openProductEditor(
         <label class="field">Fonte / etichetta
           <input name="source" required value="${html(product?.source ?? "")}">
         </label>
-        <p class="help">Se cambi una scheda precaricata, viene creata una copia personale. Lo storico dei pasti non viene ricalcolato.</p>
+        <fieldset class="portions">
+          <legend>Conversioni (facoltative)</legend>
+          <p class="help">Quanto pesa un’unità, in grammi o millilitri come scelto sopra. Compila solo quelle che usi: potrai inserire le quantità in pezzi, fette o scatolette.</p>
+          <div class="nutrition-input-grid">${portionInputs}</div>
+        </fieldset>
+        <p class="help">Se cambi una scheda precaricata, viene creata una copia personale che la sostituisce. Lo storico dei pasti non viene ricalcolato.</p>
         <button class="button primary full" type="submit">Salva prodotto</button>
       </form>`;
 
@@ -82,6 +104,14 @@ export function openProductEditor(
       const data = new FormData(event.target as HTMLFormElement);
       const isPersonal = product !== undefined && !isBuiltinProfile(product);
 
+      // Keep conversions for units this form does not list.
+      const portions: Record<string, number> = { ...product?.portions };
+      for (const unit of PORTION_UNITS) {
+        const value = Number(data.get(`portion-${unit}`));
+        if (Number.isFinite(value) && value > 0) portions[unit] = value;
+        else delete portions[unit];
+      }
+
       const personal: Profile = {
         id: isPersonal ? product.id : `custom-${createId()}`,
         name: String(data.get("name") ?? "").trim(),
@@ -91,8 +121,10 @@ export function openProductEditor(
         protein: Number(data.get("protein")),
         carbs: Number(data.get("carbs")),
         fat: Number(data.get("fat")),
-        portions: product?.portions ?? {},
+        portions,
         category: "Personali",
+        // A personal copy answers to the same names as the profile it replaces.
+        ...(product?.aliases?.length ? { aliases: [...product.aliases] } : {}),
       };
 
       if (!validProfile(personal) || !personal.source) {

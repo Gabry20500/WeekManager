@@ -166,7 +166,7 @@ function renderPantry(pantry: PantryLot[]): string {
 
 export function renderShoppingScreen(shopping: ShoppingItem[], pantry: PantryLot[], activeTab: ShoppingView): string {
   const tab = (view: ShoppingView, label: string) =>
-    `<button class="${activeTab === view ? "active" : ""}" data-shopping-tab="${view}" role="tab" aria-selected="${activeTab === view}">${label}</button>`;
+    `<button class="${activeTab === view ? "active" : ""}" data-shopping-tab="${view}" aria-pressed="${activeTab === view}">${label}</button>`;
 
   return `
     <section class="page-heading">
@@ -176,7 +176,7 @@ export function renderShoppingScreen(shopping: ShoppingItem[], pantry: PantryLot
         <p class="muted">Gestisci lista, lotti, quantità residue e scadenze.</p>
       </div>
     </section>
-    <div class="tabs" role="tablist" aria-label="Spesa e dispensa">
+    <div class="tabs" role="group" aria-label="Spesa e dispensa">
       ${tab("shopping", "Lista della spesa")}
       ${tab("pantry", "Dispensa")}
     </div>

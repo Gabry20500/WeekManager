@@ -1,4 +1,15 @@
-import type { Diary, Food, PantryLot, Profile, ShoppingItem, WeightEntry, WeightLog } from "../models/types";
+import type {
+  Diary,
+  Food,
+  Meal,
+  MealPlan,
+  PantryLot,
+  Profile,
+  ShoppingItem,
+  WeightEntry,
+  WeightLog,
+} from "../models/types";
+import { createDefaultPlan } from "../data/meal-plan";
 import { builtinProfiles, isBuiltinProfile } from "../data/food-catalog";
 import { MACRO_KEYS } from "./nutrition";
 import { showToast } from "../components/toast";
@@ -13,8 +24,9 @@ export const PROFILE_KEY = "diario-alimentare:nutrition:v1";
 export const SHOPPING_KEY = "diario-alimentare:shopping:v1";
 export const PANTRY_KEY = "diario-alimentare:pantry:v1";
 export const WEIGHT_KEY = "diario-alimentare:weight:v1";
+export const PLAN_KEY = "diario-alimentare:plan:v1";
 
-const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY, WEIGHT_KEY] as const;
+const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY, WEIGHT_KEY, PLAN_KEY] as const;
 type ArchiveKey = (typeof ARCHIVE_KEYS)[number];
 
 /**
@@ -129,6 +141,27 @@ function validWeightLog(value: unknown): value is WeightLog {
   );
 }
 
+function validMeal(value: unknown): value is Meal {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    Array.isArray(value.foods) &&
+    value.foods.every(validFood)
+  );
+}
+
+function validPlan(value: unknown): value is MealPlan {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.days) &&
+    value.days.length === 7 &&
+    value.days.every((day) => Array.isArray(day) && day.every(validMeal)) &&
+    Array.isArray(value.gymDays) &&
+    value.gymDays.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+  );
+}
+
 /* ---------------------------------------------------------------
    Loading and saving
    --------------------------------------------------------------- */
@@ -199,6 +232,16 @@ export function loadWeight(): WeightLog {
   return { ...log, entries: [...log.entries].sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
+/** The saved plan, or the default one until the user changes it. */
+export function loadPlan(): MealPlan {
+  return loadArchive(
+    PLAN_KEY,
+    validPlan,
+    createDefaultPlan(),
+    "Il piano alimentare non è leggibile. Il salvataggio è bloccato: esporta una copia dei dati attuali.",
+  );
+}
+
 /** Persists one archive. Returns `false` (after telling the user) on failure. */
 export function save(key: ArchiveKey, value: unknown): boolean {
   if (storageWarning) {
@@ -239,6 +282,7 @@ export function exportOriginalArchives(): void {
         shoppingRaw: localStorage.getItem(SHOPPING_KEY),
         pantryRaw: localStorage.getItem(PANTRY_KEY),
         weightRaw: localStorage.getItem(WEIGHT_KEY),
+        planRaw: localStorage.getItem(PLAN_KEY),
       },
       "archivi-originali.json",
     );
@@ -247,16 +291,20 @@ export function exportOriginalArchives(): void {
   }
 }
 
+/** Version written by `createBackup`. Older versions are still imported. */
+const BACKUP_VERSION = 4;
+
 /** Everything the app stores, in the format `importBackup` reads back. */
 export function createBackup() {
   return {
-    schemaVersion: 3,
+    schemaVersion: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     diary: loadDiary(),
     profiles: loadProfiles().filter((profile) => !isBuiltinProfile(profile)),
     shopping: loadShopping(),
     pantry: loadPantry(),
     weight: loadWeight(),
+    plan: loadPlan(),
   };
 }
 
@@ -273,6 +321,9 @@ function readBackup(parsed: unknown): BackupContent | undefined {
       const lists = { ...base, [SHOPPING_KEY]: parsed.shopping, [PANTRY_KEY]: parsed.pantry };
       if (parsed.schemaVersion === 2) return lists;
       if (parsed.schemaVersion === 3 && validWeightLog(parsed.weight)) return { ...lists, [WEIGHT_KEY]: parsed.weight };
+      if (parsed.schemaVersion === BACKUP_VERSION && validWeightLog(parsed.weight) && validPlan(parsed.plan)) {
+        return { ...lists, [WEIGHT_KEY]: parsed.weight, [PLAN_KEY]: parsed.plan };
+      }
     }
   }
 
