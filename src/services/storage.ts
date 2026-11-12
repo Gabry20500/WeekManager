@@ -1,4 +1,4 @@
-import type { Diary, Food, PantryLot, Profile, ShoppingItem } from "../models/types";
+import type { Diary, Food, PantryLot, Profile, ShoppingItem, WeightEntry, WeightLog } from "../models/types";
 import { builtinProfiles, isBuiltinProfile } from "../data/food-catalog";
 import { MACRO_KEYS } from "./nutrition";
 import { showToast } from "../components/toast";
@@ -12,8 +12,9 @@ export const DIARY_KEY = "diario-alimentare:diary:v1";
 export const PROFILE_KEY = "diario-alimentare:nutrition:v1";
 export const SHOPPING_KEY = "diario-alimentare:shopping:v1";
 export const PANTRY_KEY = "diario-alimentare:pantry:v1";
+export const WEIGHT_KEY = "diario-alimentare:weight:v1";
 
-const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY] as const;
+const ARCHIVE_KEYS = [DIARY_KEY, PROFILE_KEY, SHOPPING_KEY, PANTRY_KEY, WEIGHT_KEY] as const;
 type ArchiveKey = (typeof ARCHIVE_KEYS)[number];
 
 /**
@@ -115,6 +116,19 @@ const validProfiles = listOf(validProfile);
 const validShopping = listOf(validShoppingItem);
 const validPantry = listOf(validPantryLot);
 
+function validWeightEntry(value: unknown): value is WeightEntry {
+  return isRecord(value) && typeof value.date === "string" && isDateKey(value.date) && isPositiveNumber(value.kg);
+}
+
+function validWeightLog(value: unknown): value is WeightLog {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.entries) &&
+    value.entries.every(validWeightEntry) &&
+    (value.goalKg === undefined || isPositiveNumber(value.goalKg))
+  );
+}
+
 /* ---------------------------------------------------------------
    Loading and saving
    --------------------------------------------------------------- */
@@ -175,6 +189,16 @@ export function loadPantry(): PantryLot[] {
   );
 }
 
+export function loadWeight(): WeightLog {
+  const log = loadArchive(
+    WEIGHT_KEY,
+    validWeightLog,
+    { entries: [] },
+    "Le pesate non sono leggibili. Il salvataggio è bloccato: esporta una copia dei dati attuali.",
+  );
+  return { ...log, entries: [...log.entries].sort((a, b) => a.date.localeCompare(b.date)) };
+}
+
 /** Persists one archive. Returns `false` (after telling the user) on failure. */
 export function save(key: ArchiveKey, value: unknown): boolean {
   if (storageWarning) {
@@ -214,6 +238,7 @@ export function exportOriginalArchives(): void {
         profilesRaw: localStorage.getItem(PROFILE_KEY),
         shoppingRaw: localStorage.getItem(SHOPPING_KEY),
         pantryRaw: localStorage.getItem(PANTRY_KEY),
+        weightRaw: localStorage.getItem(WEIGHT_KEY),
       },
       "archivi-originali.json",
     );
@@ -225,12 +250,13 @@ export function exportOriginalArchives(): void {
 /** Everything the app stores, in the format `importBackup` reads back. */
 export function createBackup() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     diary: loadDiary(),
     profiles: loadProfiles().filter((profile) => !isBuiltinProfile(profile)),
     shopping: loadShopping(),
     pantry: loadPantry(),
+    weight: loadWeight(),
   };
 }
 
@@ -243,8 +269,10 @@ function readBackup(parsed: unknown): BackupContent | undefined {
   if (isRecord(parsed) && validDiary(parsed.diary) && validProfiles(parsed.profiles)) {
     const base = { [DIARY_KEY]: parsed.diary, [PROFILE_KEY]: parsed.profiles };
     if (parsed.schemaVersion === 1) return base;
-    if (parsed.schemaVersion === 2 && validShopping(parsed.shopping) && validPantry(parsed.pantry)) {
-      return { ...base, [SHOPPING_KEY]: parsed.shopping, [PANTRY_KEY]: parsed.pantry };
+    if (validShopping(parsed.shopping) && validPantry(parsed.pantry)) {
+      const lists = { ...base, [SHOPPING_KEY]: parsed.shopping, [PANTRY_KEY]: parsed.pantry };
+      if (parsed.schemaVersion === 2) return lists;
+      if (parsed.schemaVersion === 3 && validWeightLog(parsed.weight)) return { ...lists, [WEIGHT_KEY]: parsed.weight };
     }
   }
 

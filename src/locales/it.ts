@@ -4,6 +4,8 @@ export const it = {
   shopping: "Spesa",
   weight: "Peso",
   backup: "Backup",
+  weightSaved: "Pesata salvata.",
+  weightUpdated: "Pesata aggiornata.",
   logMeal: "Registra",
   asPlanned: "Mangiato come previsto",
   changeMeal: "Modifica",

@@ -1,4 +1,4 @@
-import type { Diary, PantryLot, Profile, Screen, ShoppingItem } from "../models/types";
+import type { Diary, PantryLot, Profile, Screen, ShoppingItem, WeightLog } from "../models/types";
 import { it } from "../locales/it";
 import { isBuiltinProfile } from "../data/food-catalog";
 import { openDataDialog } from "../components/data-dialog";
@@ -9,23 +9,28 @@ import {
   PANTRY_KEY,
   PROFILE_KEY,
   SHOPPING_KEY,
+  WEIGHT_KEY,
   exportOriginalArchives,
   getStorageWarning,
   loadDiary,
   loadPantry,
   loadProfiles,
   loadShopping,
+  loadWeight,
   save,
 } from "../services/storage";
 import { bindShoppingScreen, renderShoppingScreen, type ShoppingView } from "../screens/shopping";
 import { bindTodayScreen, renderTodayScreen } from "../screens/today";
-import { renderWeightScreen } from "../screens/weight";
+import { bindWeightScreen, renderWeightScreen, type WeightRange } from "../screens/weight";
 
 type AppState = {
   diary: Diary;
   profiles: Profile[];
   shopping: ShoppingItem[];
   pantry: PantryLot[];
+  weight: WeightLog;
+  weightRange: WeightRange;
+  weightShowAll: boolean;
   screen: Screen;
   shoppingTab: ShoppingView;
   selectedDate: string;
@@ -40,12 +45,13 @@ const NAV_ITEMS: readonly { screen: Screen; icon: string; label: string }[] = [
 let app: HTMLDivElement;
 let state: AppState;
 
-function loadData(): Pick<AppState, "diary" | "profiles" | "shopping" | "pantry"> {
+function loadData(): Pick<AppState, "diary" | "profiles" | "shopping" | "pantry" | "weight"> {
   return {
     diary: loadDiary(),
     profiles: loadProfiles(),
     shopping: loadShopping(),
     pantry: loadPantry(),
+    weight: loadWeight(),
   };
 }
 
@@ -77,6 +83,12 @@ function savePantry(next: PantryLot[]): boolean {
   return true;
 }
 
+function saveWeight(next: WeightLog): boolean {
+  if (!save(WEIGHT_KEY, next)) return false;
+  state.weight = next;
+  return true;
+}
+
 function renderScreen(): string {
   switch (state.screen) {
     case "today":
@@ -84,7 +96,7 @@ function renderScreen(): string {
     case "shopping":
       return renderShoppingScreen(state.shopping, state.pantry, state.shoppingTab);
     case "weight":
-      return renderWeightScreen();
+      return renderWeightScreen(state);
   }
 }
 
@@ -109,7 +121,6 @@ function render(): void {
         <span class="brand"><span class="brand-mark" aria-hidden="true">D</span>${it.appTitle}</span>
         <button class="button small secondary" id="open-data">${it.backup}</button>
       </header>
-      <aside class="prototype">Diario, alimenti e spesa attivi · peso in preparazione</aside>
       ${renderStorageWarning()}
       <main>${renderScreen()}</main>
       <nav class="bottom-nav" aria-label="Navigazione principale">${renderNavigation()}</nav>
@@ -163,6 +174,20 @@ function render(): void {
     });
   }
 
+  if (state.screen === "weight") {
+    bindWeightScreen(app, state, {
+      saveWeight,
+      getWeight: () => state.weight,
+      setRange: (range) => {
+        state.weightRange = range;
+      },
+      setShowAll: (showAll) => {
+        state.weightShowAll = showAll;
+      },
+      rerender: render,
+    });
+  }
+
   restoreFocus();
 }
 
@@ -175,6 +200,8 @@ export function startApplication(): void {
     ...loadData(),
     screen: "today",
     shoppingTab: "shopping",
+    weightRange: "90",
+    weightShowAll: false,
     selectedDate: todayKey(),
   };
   render();

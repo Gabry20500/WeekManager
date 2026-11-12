@@ -46,6 +46,18 @@ export type Diary = Record<string, Entry[]>;
 
 export type Screen = "today" | "shopping" | "weight";
 
+export type WeightEntry = {
+  /** Day of the weigh-in, `YYYY-MM-DD`. At most one per day. */
+  date: string;
+  kg: number;
+};
+
+export type WeightLog = {
+  /** Sorted by date. */
+  entries: WeightEntry[];
+  goalKg?: number;
+};
+
 export const SHOPPING_UNITS = ["g", "ml", "pezzi", "porzioni", "confezioni"] as const;
 export type ShoppingUnit = (typeof SHOPPING_UNITS)[number];
 
