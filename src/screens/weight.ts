@@ -13,6 +13,7 @@ import {
   withMovingAverage,
   type WeightPoint,
 } from "../services/weight";
+import { WEEKDAYS } from "../services/plan";
 import { daysUntil, format, formatDate, html, isDateKey, todayKey } from "../utils/helpers";
 
 /** Days shown in the chart; `"all"` for the whole history. */
@@ -63,6 +64,27 @@ function rangePoints(points: WeightPoint[], range: WeightRange): WeightPoint[] {
 function formatChange(kg: number): string {
   const rounded = Math.round(kg * 10) / 10;
   return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}${format(Math.abs(rounded))} kg`;
+}
+
+/** "lun, gio" for the chosen weigh days, in week order. */
+function weighDaysLabel(weighDays: number[] | undefined): string {
+  return WEEKDAYS.filter(([weekday]) => weighDays?.includes(weekday))
+    .map(([, short]) => short.toLowerCase())
+    .join(", ");
+}
+
+function renderWeighDays(weighDays: number[] | undefined): string {
+  const label = weighDaysLabel(weighDays);
+  return `
+    <section class="card">
+      <div class="section-heading">
+        <div>
+          <h2>Giorni di pesata</h2>
+          <p class="muted">${label ? `Promemoria nella schermata Oggi: ${label}.` : "Scegli i giorni in cui vuoi pesarti: te lo ricorderò nella schermata Oggi."}</p>
+        </div>
+      </div>
+      <div class="actions"><button class="button small secondary" id="weight-days">${label ? "Cambia giorni" : "Scegli i giorni"}</button></div>
+    </section>`;
 }
 
 function renderSummary(points: WeightPoint[], goalKg: number | undefined): string {
@@ -171,6 +193,7 @@ export function renderWeightSection(state: WeightState): string {
   const points = withMovingAverage(state.weight.entries);
   return `
     ${renderSummary(points, state.weight.goalKg)}
+    ${renderWeighDays(state.weight.weighDays)}
     ${renderForm(points)}
     ${renderChartCard(points, state)}
     ${renderTable(points, state.weightShowAll)}`;
@@ -230,6 +253,20 @@ export function bindWeightSection(root: ParentNode, state: WeightState, actions:
     actions.rerender();
   });
 
+  root.querySelector("#weight-days")?.addEventListener("click", () => {
+    const chosen = state.weight.weighDays ?? [];
+    const options = WEEKDAYS.map(
+      ([weekday, , long]) =>
+        `<label class="check"><input type="checkbox" name="day" value="${weekday}" ${chosen.includes(weekday) ? "checked" : ""}> ${long}</label>`,
+    ).join("");
+    openFormDialog({
+      title: "Giorni di pesata",
+      submitLabel: "Salva",
+      fields: `<p class="help">Nei giorni scelti, la schermata Oggi ti ricorda di pesarti finché non registri il peso. Nessun giorno: nessun promemoria.</p>${options}`,
+      onSubmit: (data) => commit({ ...actions.getWeight(), weighDays: data.getAll("day").map(Number).sort() }),
+    });
+  });
+
   root.querySelector("#weight-goal")?.addEventListener("click", () => {
     const current = state.weight.goalKg;
     openFormDialog({
@@ -240,7 +277,10 @@ export function bindWeightSection(root: ParentNode, state: WeightState, actions:
         <p class="help">Lascia vuoto per togliere l’obiettivo.</p>`,
       onSubmit: (data) => {
         const text = String(data.get("goal") ?? "").trim();
-        if (!text) return commit({ entries: actions.getWeight().entries });
+        if (!text) {
+          const { goalKg: _removed, ...rest } = actions.getWeight();
+          return commit(rest);
+        }
         const goalKg = Math.round(Number(text) * 10) / 10;
         if (!Number.isFinite(goalKg) || goalKg < MIN_KG || goalKg > MAX_KG) return "Controlla il peso.";
         return commit({ ...actions.getWeight(), goalKg });

@@ -1,4 +1,4 @@
-import type { Food, Meal, MealPlan } from "../models/types";
+import type { Entry, Food, Meal, MealPlan } from "../models/types";
 import { clone, createId, parseDate } from "../utils/helpers";
 
 /** Weekdays in the order they are shown: Monday first. Values are `Date.getDay()` numbers. */
@@ -23,6 +23,30 @@ export function weekdayName(weekday: number): string {
 /** Meals planned for a calendar day. */
 export function mealsForDate(plan: MealPlan, date: string): Meal[] {
   return plan.days[weekdayOf(date)] ?? [];
+}
+
+/**
+ * Meals to show for a day: the planned ones, plus one empty meal for every
+ * logged entry whose meal is no longer in the plan, so nothing logged is hidden.
+ */
+export function mealsWithLogged(plan: MealPlan, date: string, entries: Entry[]): Meal[] {
+  const planned = mealsForDate(plan, date);
+  const known = new Set(planned.map((meal) => meal.id));
+  const orphans = entries
+    .filter((entry) => !known.has(entry.mealId))
+    .map((entry) => ({ id: entry.mealId, name: "Pasto registrato (non più nel piano)", foods: [] }));
+  return [...planned, ...orphans];
+}
+
+/** New plan with the meals of one weekday replaced by `change(meals)`. */
+export function withMeals(plan: MealPlan, weekday: number, change: (meals: Meal[]) => Meal[]): MealPlan {
+  const next = clone(plan);
+  next.days[weekday] = change(next.days[weekday] ?? []);
+  return next;
+}
+
+export function createMeal(name: string): Meal {
+  return { id: `meal-${createId()}`, name, foods: [] };
 }
 
 export function isGymDay(plan: MealPlan, date: string): boolean {

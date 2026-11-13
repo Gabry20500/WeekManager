@@ -178,6 +178,14 @@ function render(): void {
 
   if (state.screen === "today") {
     bindTodayScreen(app, state, {
+      openWeight: () => {
+        state.screen = "weight";
+        state.trendsTab = "weight";
+        render();
+        setFocusTarget("#weight-kg");
+        restoreFocus();
+        window.scrollTo(0, 0);
+      },
       selectDate: (date) => {
         state.selectedDate = date;
         render();

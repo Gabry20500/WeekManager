@@ -20,6 +20,8 @@ export type ShoppingActions = {
   rerender(): void;
 };
 
+/** Period over which discarded lots are counted. */
+const WASTE_DAYS = 30;
 /** Lots expiring within this many days are flagged. */
 const EXPIRING_SOON_DAYS = 3;
 
@@ -149,9 +151,15 @@ function renderPantry(pantry: PantryLot[]): string {
     soon ? `${soon} in scadenza entro ${EXPIRING_SOON_DAYS} giorni` : "",
   ].filter(Boolean);
 
+  // Lots thrown away (not eaten) in the last 30 days.
+  const wasted = pantry.filter(
+    (lot) => lot.discarded && (daysUntil(lot.updatedAt.slice(0, 10)) ?? -Infinity) > -WASTE_DAYS,
+  ).length;
+  const waste = wasted ? ` ${plural(wasted, "lotto scartato", "lotti scartati")} negli ultimi ${WASTE_DAYS} giorni.` : "";
+
   const summary = active.length
-    ? `${plural(active.length, "lotto attivo", "lotti attivi")}, ordinati per scadenza.`
-    : "Nessun lotto attivo registrato.";
+    ? `${plural(active.length, "lotto attivo", "lotti attivi")}, ordinati per scadenza.${waste}`
+    : `Nessun lotto attivo registrato.${waste}`;
 
   return `
     <section class="card">
@@ -312,13 +320,17 @@ function bindPantry(root: ParentNode, pantry: PantryLot[], actions: ShoppingActi
 
   onClick(root, "pantry-discard", (id) => {
     const lot = pantry.find((entry) => entry.id === id);
-    if (!lot || !update(id, { quantityRemaining: 0 })) return;
+    if (!lot || !update(id, { quantityRemaining: 0, discarded: lot.quantityRemaining })) return;
     showToast(`“${lot.name}” scartato.`, {
       actionLabel: "Annulla",
       onAction: () => {
         const restored = actions
           .getPantry()
-          .map((entry) => (entry.id === id ? { ...entry, quantityRemaining: lot.quantityRemaining } : entry));
+          .map((entry) => {
+            if (entry.id !== id) return entry;
+            const { discarded: _discarded, ...kept } = entry;
+            return { ...kept, quantityRemaining: lot.quantityRemaining };
+          });
         if (actions.savePantry(restored)) actions.rerender();
       },
     });

@@ -1,7 +1,7 @@
-import type { Diary, Food, Meal, MealPlan, Profile } from "../models/types";
+import type { Diary, Food, Meal, MealPlan, Profile, WeightLog } from "../models/types";
 import { it } from "../locales/it";
 import { findProfile, isExcludedFood, totalNutrition, withSnapshot } from "../services/nutrition";
-import { isGymDay, mealsForDate, sameFoods } from "../services/plan";
+import { isGymDay, mealsWithLogged, sameFoods, weekdayOf } from "../services/plan";
 import { recentProfileIds } from "../services/diary";
 import { renderDayProgress } from "../components/macro-summary";
 import { openMealEditor } from "../components/meal-editor";
@@ -14,11 +14,30 @@ import { clone, format, formatDate, formatMacrosHtml, html, parseDate, shiftDate
 export type TodayState = {
   diary: Diary;
   plan: MealPlan;
+  weight: WeightLog;
   profiles: Profile[];
   selectedDate: string;
 };
 
+/** Planned meals of the selected day, plus any logged meal no longer in the plan. */
+function dayMeals(state: TodayState, date: string) {
+  return mealsWithLogged(state.plan, date, state.diary[date] ?? []);
+}
+
+/** Reminder shown today on a chosen weigh day, until the weight is logged. */
+function renderWeighReminder(state: TodayState): string {
+  const today = todayKey();
+  const due =
+    state.selectedDate === today &&
+    (state.weight.weighDays ?? []).includes(weekdayOf(today)) &&
+    !state.weight.entries.some((entry) => entry.date === today);
+  if (!due) return "";
+  return `<p class="notice with-action" role="status"><span>Oggi è giorno di pesata.</span><button class="button small secondary" id="go-weight">Registra il peso</button></p>`;
+}
+
 export type TodayActions = {
+  /** Opens the weight section of the Trends screen. */
+  openWeight(): void;
   /** Changes the displayed day and redraws. */
   selectDate(date: string): void;
   saveDiary(next: Diary): boolean;
@@ -92,7 +111,7 @@ function renderMealCard(meal: Meal, state: TodayState): string {
 }
 
 export function renderTodayScreen(state: TodayState): string {
-  const plan = mealsForDate(state.plan, state.selectedDate);
+  const plan = dayMeals(state, state.selectedDate);
   const planned = plan.flatMap((meal) => meal.foods);
   const consumed = (state.diary[state.selectedDate] ?? []).flatMap((entry) => entry.foods);
 
@@ -106,6 +125,7 @@ export function renderTodayScreen(state: TodayState): string {
       <span class="badge">${isGymDay(state.plan, state.selectedDate) ? "Palestra" : "Riposo"}</span>
     </section>
     ${renderDateNavigation(state.selectedDate)}
+    ${renderWeighReminder(state)}
     ${renderDayProgress(planned, consumed, state.profiles)}
     ${plan.map((meal) => renderMealCard(meal, state)).join("")}
     <button class="button secondary full" id="products">Archivio alimenti / prodotto personale</button>`;
@@ -117,6 +137,8 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
   root.querySelector("#previous")?.addEventListener("click", () => actions.selectDate(shiftDate(date, -1)));
   root.querySelector("#next")?.addEventListener("click", () => actions.selectDate(shiftDate(date, 1)));
   root.querySelector("#go-today")?.addEventListener("click", () => actions.selectDate(todayKey()));
+
+  root.querySelector("#go-weight")?.addEventListener("click", actions.openWeight);
 
   root
     .querySelector("#products")
@@ -140,14 +162,14 @@ export function bindTodayScreen(root: ParentNode, state: TodayState, actions: To
   // Logs the planned foods as eaten, with the nutrition computed now.
   root.querySelectorAll<HTMLButtonElement>("[data-as-planned]").forEach((button) =>
     button.addEventListener("click", () => {
-      const meal = mealsForDate(state.plan, date).find((item) => item.id === button.dataset.asPlanned);
+      const meal = dayMeals(state, date).find((item) => item.id === button.dataset.asPlanned);
       if (meal) saveMeal(meal.id, meal.foods.map((food) => withSnapshot(food, actions.getProfiles())), true);
     }),
   );
 
   root.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((button) =>
     button.addEventListener("click", () => {
-      const meal = mealsForDate(state.plan, date).find((item) => item.id === button.dataset.edit);
+      const meal = dayMeals(state, date).find((item) => item.id === button.dataset.edit);
       if (!meal) return;
       const entry = (state.diary[date] ?? []).find((item) => item.mealId === meal.id);
 

@@ -128,6 +128,10 @@ const validProfiles = listOf(validProfile);
 const validShopping = listOf(validShoppingItem);
 const validPantry = listOf(validPantryLot);
 
+function validWeekdays(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+}
+
 function validWeightEntry(value: unknown): value is WeightEntry {
   return isRecord(value) && typeof value.date === "string" && isDateKey(value.date) && isPositiveNumber(value.kg);
 }
@@ -137,7 +141,8 @@ function validWeightLog(value: unknown): value is WeightLog {
     isRecord(value) &&
     Array.isArray(value.entries) &&
     value.entries.every(validWeightEntry) &&
-    (value.goalKg === undefined || isPositiveNumber(value.goalKg))
+    (value.goalKg === undefined || isPositiveNumber(value.goalKg)) &&
+    (value.weighDays === undefined || validWeekdays(value.weighDays))
   );
 }
 
@@ -157,8 +162,7 @@ function validPlan(value: unknown): value is MealPlan {
     Array.isArray(value.days) &&
     value.days.length === 7 &&
     value.days.every((day) => Array.isArray(day) && day.every(validMeal)) &&
-    Array.isArray(value.gymDays) &&
-    value.gymDays.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    validWeekdays(value.gymDays)
   );
 }
 

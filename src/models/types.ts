@@ -65,6 +65,8 @@ export type WeightLog = {
   /** Sorted by date. */
   entries: WeightEntry[];
   goalKg?: number;
+  /** Weekdays (`Date.getDay()` numbers) chosen for weighing in; drives the reminder. */
+  weighDays?: number[];
 };
 
 /** Units a food amount can be given in, besides the profile basis (g or ml). */
@@ -104,6 +106,8 @@ export type PantryLot = {
   openedAt?: string;
   expiresAt?: string;
   expiryKind?: ExpiryKind;
+  /** Quantity thrown away when the lot was discarded, as opposed to eaten. */
+  discarded?: number;
   createdAt: string;
   updatedAt: string;
 };

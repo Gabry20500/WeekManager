@@ -1,11 +1,11 @@
 import type { Meal, MealPlan, Profile } from "../models/types";
 import { createDefaultPlan } from "../data/meal-plan";
-import { openFormDialog } from "../components/form-dialog";
+import { inputField, openFormDialog } from "../components/form-dialog";
 import { renderMacros } from "../components/macro-summary";
 import { openMealEditor } from "../components/meal-editor";
 import { showToast } from "../components/toast";
 import { findProfile, isExcludedFood, totalNutrition } from "../services/nutrition";
-import { WEEKDAYS, copyMeals, weekdayName, withMealFoods } from "../services/plan";
+import { WEEKDAYS, copyMeals, createMeal, weekdayName, withMealFoods, withMeals } from "../services/plan";
 import { clone, format, formatMacrosHtml, html } from "../utils/helpers";
 
 export type PlanState = {
@@ -58,7 +58,9 @@ function renderMealCard(meal: Meal, profiles: Profile[]): string {
       ${foods ? `<ul class="food-list">${foods}</ul>` : ""}
       <p class="help">${summary}</p>
       <div class="actions">
-        <button class="button secondary" data-plan-edit="${meal.id}">${meal.foods.length ? "Modifica" : "Aggiungi alimenti"}</button>
+        <button class="button secondary" data-plan-edit="${meal.id}">${meal.foods.length ? "Modifica alimenti" : "Aggiungi alimenti"}</button>
+        <button class="button small secondary" data-plan-rename="${meal.id}">Rinomina</button>
+        <button class="button small secondary" data-plan-remove="${meal.id}">Elimina pasto</button>
       </div>
     </article>`;
 }
@@ -88,7 +90,8 @@ export function renderPlanScreen(state: PlanState): string {
       </div>
     </section>
     ${renderMacros(meals.flatMap((meal) => meal.foods), state.profiles, `Totale previsto · ${day}`)}
-    ${meals.map((meal) => renderMealCard(meal, state.profiles)).join("")}`;
+    ${meals.map((meal) => renderMealCard(meal, state.profiles)).join("")}
+    <button class="button secondary full" id="plan-add-meal">+ Aggiungi un pasto a ${day.toLowerCase()}</button>`;
 }
 
 export function bindPlanScreen(root: ParentNode, state: PlanState, actions: PlanActions): void {
@@ -136,6 +139,48 @@ export function bindPlanScreen(root: ParentNode, state: PlanState, actions: Plan
       );
     }),
   );
+
+  /** Asks for a meal name; `onSave` receives it trimmed. */
+  const askMealName = (title: string, current: string, onSave: (name: string) => boolean) => {
+    openFormDialog({
+      title,
+      submitLabel: "Salva",
+      fields: inputField("Nome del pasto", "name", current, 'required maxlength="60" placeholder="Es. Merenda, Pre-allenamento"'),
+      onSubmit: (data) => {
+        const name = String(data.get("name") ?? "").trim();
+        return name ? onSave(name) : "Scrivi un nome.";
+      },
+    });
+  };
+
+  root.querySelectorAll<HTMLButtonElement>("[data-plan-rename]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const id = button.dataset.planRename;
+      const meal = (state.plan.days[weekday] ?? []).find((item) => item.id === id);
+      if (!meal) return;
+      askMealName("Rinomina pasto", meal.name, (name) =>
+        commit(withMeals(actions.getPlan(), weekday, (meals) => meals.map((item) => (item.id === id ? { ...item, name } : item)))),
+      );
+    }),
+  );
+
+  root.querySelectorAll<HTMLButtonElement>("[data-plan-remove]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const id = button.dataset.planRemove;
+      const meal = (state.plan.days[weekday] ?? []).find((item) => item.id === id);
+      if (!meal) return;
+      commitWithUndo(
+        withMeals(state.plan, weekday, (meals) => meals.filter((item) => item.id !== id)),
+        `“${meal.name}” tolto da ${day.toLowerCase()}.`,
+      );
+    }),
+  );
+
+  root.querySelector("#plan-add-meal")?.addEventListener("click", () => {
+    askMealName(`Nuovo pasto · ${day}`, "", (name) =>
+      commit(withMeals(actions.getPlan(), weekday, (meals) => [...meals, createMeal(name)])),
+    );
+  });
 
   root.querySelector("#plan-copy")?.addEventListener("click", () => {
     const options = WEEKDAYS.filter(([value]) => value !== weekday)
